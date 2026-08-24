@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CRM Imobiliário Local v8.1 — André Barros</title>
+<title>CRM Imobiliário Local v9.0 — André Barros</title>
 <style>
   :root {
     --azul: #006994;
@@ -938,7 +938,7 @@
       <button class="nav-btn" data-page="config"><span class="icon">⚙</span><span>Backup</span></button>
     </nav>
     <div class="footer" id="app-footer">
-      v8.1 · dados locais
+      v9.0 · dados locais
     </div>
   </aside>
 
@@ -956,7 +956,7 @@
       <form id="form-cliente">
         <input type="hidden" id="cliente-id">
 
-        <div class="section-title">📋 Dados do Cliente</div>
+        <div class="section-title">📋 Pessoa e oportunidade</div>
         <div class="form-grid">
           <div class="form-group two">
             <label>Nome completo *</label>
@@ -1611,9 +1611,10 @@
 <script>
 /* ===== VERSÃO & CHANGELOG =====
    Incremente APP_VERSION e adicione uma linha no topo de CHANGELOG a cada alteração. */
-const APP_VERSION = '8.1';
+const APP_VERSION = '9.0';
 const APP_AUTOR = 'André Barros';
 const CHANGELOG = [
+  { v: '9.0', desc: 'Base única de Pessoas e Imóveis: proprietário passa a ser um vínculo de propriedade, Locação usa os mesmos cadastros e registros antigos são reconciliados sem exclusão.' },
   { v: '8.1', desc: 'Pipeline comercial reorganizado: Proposta e Negociação unificadas, nova etapa Reciclagem / Follow-up e Fechado como coluna final.' },
   { v: '8.0', desc: 'Inteligência comercial: adesão ao processo, score 0–10, prioridade A/B/C, fluxo operacional de locação, alerta de documentação em 24h, captação operacional e comissionamento GRI 35/35/30.' },
   { v: '7.0', desc: 'Modo Super Corretor: tela Hoje, Locação em destaque, próxima ação com prazo, radar de follow-up e qualificação operacional rápida.' },
@@ -1642,7 +1643,7 @@ const CHANGELOG = [
 const STORAGE_KEY = 'crm_andre_v5';
 const LEGACY_STORAGE_KEYS = ['crm_andre_v4', 'crm_andre_v3', 'crm_andre_v2', 'crm_andre_v1'];
 const BACKUP_STORAGE_KEY = 'crm_andre_v5_backup';
-const DATA_SCHEMA_VERSION = 9;
+const DATA_SCHEMA_VERSION = 10;
 const STATUS_LIST = ['Novo Lead','Em Atendimento','Visita Agendada','Proposta / Negociação','Perdido','Em Pausa','Reciclagem / Follow-up','Fechado'];
 const STATUS_CLASS = {
   'Novo Lead': 'novo',
@@ -1933,6 +1934,91 @@ function migrarEstruturaV8(base) {
   });
 }
 
+// Concilia o antigo módulo de Locação com as bases únicas de Pessoas e Imóveis.
+// As listas legadas são preservadas para compatibilidade de backup, mas deixam
+// de ser a fonte principal exibida nas telas.
+function migrarEstruturaV10(base) {
+  const soDigitos = valor => String(valor || '').replace(/\D/g, '');
+  const chaveTexto = valor => String(valor || '').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ');
+  const copiarSeVazio = (destino, origem, campos) => campos.forEach(campo => {
+    if ((destino[campo] === undefined || destino[campo] === null || String(destino[campo]) === '') && origem[campo] !== undefined && origem[campo] !== null && String(origem[campo]) !== '') destino[campo] = origem[campo];
+  });
+  const acharPessoa = perfil => {
+    if (perfil.pessoaId) {
+      const vinculada = base.pessoas.find(p => p.id === perfil.pessoaId);
+      if (vinculada) return vinculada;
+    }
+    if (perfil.clienteId) {
+      const oportunidade = base.clientes.find(c => c.id === perfil.clienteId);
+      const vinculada = base.pessoas.find(p => p.id === oportunidade?.pessoaId);
+      if (vinculada) return vinculada;
+    }
+    const doc = soDigitos(perfil.doc);
+    if (doc) {
+      const porDocumento = base.pessoas.find(p => soDigitos(p.doc) === doc);
+      return porDocumento || null;
+    }
+    const nome = chaveTexto(perfil.nome);
+    return nome ? base.pessoas.find(p => chaveTexto(p.nome) === nome) : null;
+  };
+  const conciliarPessoa = (perfil, papel, prefixo) => {
+    let pessoa = acharPessoa(perfil);
+    if (!pessoa) {
+      pessoa = { id:idSeguro(`${prefixo}_${perfil.id || uid()}`), nome:perfil.nome || 'Pessoa sem nome', papeis:[], criadoEm:hoje() };
+      base.pessoas.push(pessoa);
+    }
+    copiarSeVazio(pessoa, perfil, ['nome','doc','rg','whatsapp','telefone','email','profissao','endereco','banco','pix']);
+    if (!pessoa.observacoes && (perfil.observacoes || perfil.obs)) pessoa.observacoes = perfil.observacoes || perfil.obs;
+    adicionarPapel(pessoa, papel);
+    perfil.pessoaId = pessoa.id;
+    pessoa.atualizadoEm = pessoa.atualizadoEm || hoje();
+    return pessoa;
+  };
+
+  const proprietarios = new Map();
+  base.locProprietarios.forEach(perfil => proprietarios.set(perfil.id, conciliarPessoa(perfil, 'Proprietário', 'pes_pr')));
+  const locatarios = new Map();
+  base.locLocatarios.forEach(perfil => locatarios.set(perfil.id, conciliarPessoa(perfil, 'Locatário', 'pes_lo')));
+
+  base.locImoveis.forEach(legado => {
+    const enderecoLegado = chaveTexto(legado.endereco);
+    let imovel = (legado.imovelV5Id && base.imoveis.find(i => i.id === legado.imovelV5Id)) ||
+      base.imoveis.find(i => i.legacyLocId === legado.id) ||
+      (enderecoLegado ? base.imoveis.find(i => chaveTexto(i.endereco || enderecoImovelV5(i)) === enderecoLegado) : null);
+    if (!imovel) {
+      imovel = { id:idSeguro(`imv_loc_${legado.id || uid()}`), legacyLocId:legado.id, criadoEm:hoje(), documentos:{} };
+      base.imoveis.push(imovel);
+    }
+    const origem = {
+      codigo:legado.codigo, endereco:legado.endereco, logradouro:legado.endereco, tipo:legado.tipo,
+      finalidadeUso:legado.finalidade, mobilia:legado.mobilia, quartos:legado.quartos, vagas:legado.vagas,
+      caracteristicas:legado.caracteristicas, observacoes:legado.obs, aluguel:legado.aluguel,
+      condominio:legado.condominio, iptu:legado.iptu, admPct:legado.admPct,
+      comissaoLocacaoPct:legado.comissaoPct, captacaoData:legado.captacaoData,
+      exclusividade:legado.exclusividade, corretorCaptador:legado.corretorCaptador,
+      captacaoDocsStatus:legado.captacaoDocsStatus, autorizacaoCaptacao:legado.autorizacaoCaptacao,
+      fotosCaptacao:legado.fotosCaptacao, ultimaAtualizacaoProprietario:legado.ultimaAtualizacaoProprietario,
+      locacaoStatus:legado.situacao
+    };
+    copiarSeVazio(imovel, origem, Object.keys(origem));
+    imovel.locacaoAtiva = true;
+    imovel.legacyLocId = legado.id;
+    imovel.atualizadoEm = imovel.atualizadoEm || hoje();
+    legado.imovelV5Id = imovel.id;
+    const pessoa = proprietarios.get(legado.proprietarioId);
+    if (pessoa && !base.imovelProprietarios.some(v => v.imovelId === imovel.id && v.pessoaId === pessoa.id)) {
+      const semDono = !base.imovelProprietarios.some(v => v.imovelId === imovel.id);
+      base.imovelProprietarios.push({ id:idSeguro(`ip_${imovel.id}_${pessoa.id}`), imovelId:imovel.id, pessoaId:pessoa.id, percentual:100, principal:semDono });
+    }
+  });
+
+  base.locContratos.forEach(contrato => {
+    if (!contrato.imovelV5Id) contrato.imovelV5Id = base.locImoveis.find(i => i.id === contrato.imovelId)?.imovelV5Id || '';
+    if (!contrato.proprietarioPessoaId) contrato.proprietarioPessoaId = proprietarios.get(contrato.proprietarioId)?.id || '';
+    if (!contrato.locatarioPessoaId) contrato.locatarioPessoaId = locatarios.get(contrato.locatarioId)?.id || '';
+  });
+}
+
 function normalizarState(raw) {
   const base = estadoVazio();
   const src = normalizarRegistro(sanitizarValorPersistido(raw));
@@ -1985,6 +2071,7 @@ function normalizarState(raw) {
   const schemaOrigem = Number(src.schemaVersion || 0);
   if (schemaOrigem < 5) migrarEstruturaV5(base, src);
   if (schemaOrigem < 8) migrarEstruturaV8(base);
+  if (schemaOrigem < 10) migrarEstruturaV10(base);
   const idsClientes = new Set(base.clientes.map(x => x.id));
   const idsProps = new Set(base.locProprietarios.map(x => x.id));
   const idsLocs = new Set(base.locLocatarios.map(x => x.id));
@@ -2107,6 +2194,7 @@ function salvar(novoState, { silencioso = false } = {}) {
   }
 }
 
+const SCHEMA_ARMAZENADO_INICIAL = Number(lerStorageSeguro(STORAGE_KEY)?.schemaVersion || 0);
 let state = carregar();
 
 function toast(msg) {
@@ -3151,7 +3239,7 @@ const escHtml = escAttr;
 
 const EVENTOS_INLINE_PERMITIDOS = {
   onclick: /^(?:event\.stopPropagation\(\);\s*)?(?:abrirModalCliente|abrirModalTarefa|abrirDetalhe|abrirDashboardLead|abrirInteracao|abrirClienteDoModalLoc|fecharModal|salvarCliente|salvarTarefa|salvarInteracao|setCalcModo|stepCalc|stepAvp|setPercCalc|setDivisaoCalc|novaTarefaVinculo|setLocSub|abrirFormImovel|abrirFormProprietario|abrirFormLocatario|abrirFormContrato|locExcluir|irParaLoc|toggleTarefa|excluirTarefa|kanbanMudarStatus|window\.print|importarDados|exportarDados|salvarBackupEmPastaV5|apagarTudo|restaurarBackupAutomatico|abrirFormPessoaV5|abrirVisao360PessoaV5|salvarPessoaV5|excluirPessoaV5|abrirFormImovelV5|salvarImovelV5|excluirImovelV5|removerProprietarioV5|abrirFormContratoV5|salvarContratoV5|excluirContratoV5|abrirFormComissaoV5|salvarComissaoV5|excluirComissaoV5|setSimuladorV5|salvarFinanciamentoV5|salvarInvestimentoV5|resolverPendenciaMigracaoV5|irPaginaV5|abrirLeadPessoaV5|abrirFormAvaliacaoV5|salvarAvaliacaoV5|excluirAvaliacaoV5|imprimirAvaliacaoV5|calcularAvaliacaoV5)\([^;]*\);?$/,
-  onchange: /^(?:toggleTarefa|render|atualizarFiltroClientes|aplicarFaixaCalc|aplicarModoDivisao|toggleLocParticipantes|locContratoPrefill|toggleCampoConjuge|kanbanMudarStatus|renderPessoasV5|renderImoveisV5|calcularFinanciamentoV5|calcularInvestimentoV5|calcularComissaoV5|toggleOperacaoV5|calcularAvaliacaoV5)\([^;]*\);?$/,
+  onchange: /^(?:toggleTarefa|render|atualizarFiltroClientes|aplicarFaixaCalc|aplicarModoDivisao|toggleLocParticipantes|locContratoPrefill|atualizarProprietariosContratoV10|toggleCampoConjuge|kanbanMudarStatus|renderPessoasV5|renderImoveisV5|calcularFinanciamentoV5|calcularInvestimentoV5|calcularComissaoV5|toggleOperacaoV5|calcularAvaliacaoV5)\([^;]*\);?$/,
   oninput: /^(?:render|atualizarFiltroClientes|renderBuscaGlobalV5|calcCustomMarcar|calcularHonorarios|calcularLocComissao|renderPessoasV5|renderImoveisV5|calcularFinanciamentoV5|calcularInvestimentoV5|calcularComissaoV5|calcularAvaliacaoV5)\([^;]*\);?$/,
   ondragstart: /^kanbanDragStart\([^;]*\);?$/,
   ondragover: /^kanbanDragOver\([^;]*\);?$/,
@@ -3299,6 +3387,24 @@ function locExcluir(listKey, id, label) {
 
 function locOpcoesCliente(selId) {
   return `<option value="">— nenhum —</option>` + state.clientes.map(c => `<option value="${c.id}" ${c.id === selId ? 'selected' : ''}>${escAttr(c.nome)}</option>`).join('');
+}
+function sincronizarPessoaPerfilLocacaoV10(perfil, papel) {
+  const doc = String(perfil.doc || '').replace(/\D/g, '');
+  const nome = String(perfil.nome || '').trim().toLocaleLowerCase('pt-BR');
+  const oportunidade = perfil.clienteId ? state.clientes.find(c => c.id === perfil.clienteId) : null;
+  let pessoa = (perfil.pessoaId && state.pessoas.find(p => p.id === perfil.pessoaId)) ||
+    (oportunidade?.pessoaId && state.pessoas.find(p => p.id === oportunidade.pessoaId)) ||
+    (doc ? state.pessoas.find(p => String(p.doc || '').replace(/\D/g, '') === doc) :
+      (nome && state.pessoas.find(p => String(p.nome || '').trim().toLocaleLowerCase('pt-BR') === nome)));
+  if (!pessoa) { pessoa = { id:uid(), papeis:[], criadoEm:hoje() }; state.pessoas.push(pessoa); }
+  Object.assign(pessoa, { nome:perfil.nome, doc:perfil.doc, whatsapp:perfil.whatsapp, email:perfil.email,
+    profissao:perfil.profissao || pessoa.profissao || '', endereco:perfil.endereco || pessoa.endereco || '',
+    banco:perfil.banco || pessoa.banco || '', pix:perfil.pix || pessoa.pix || '',
+    admPct:perfil.admPct || pessoa.admPct || '', diaRepasse:perfil.diaRepasse || pessoa.diaRepasse || '', atualizadoEm:hoje() });
+  adicionarPapel(pessoa, papel);
+  perfil.pessoaId = pessoa.id;
+  if (oportunidade && !oportunidade.pessoaId) oportunidade.pessoaId = pessoa.id;
+  return pessoa;
 }
 function tarefasDoVinculo(tipo, id) {
   return state.tarefas.filter(t => t.vinculoTipo === tipo && t.vinculoId === id);
@@ -3551,11 +3657,14 @@ function salvarProprietario() {
   if (!numeroEntre(locVal('pr-adm'), 0, 100)) { toast('A taxa de administração deve ficar entre 0% e 100%.'); return; }
   if (!numeroEntre(locVal('pr-dia'), 1, 31)) { toast('O dia do repasse deve ficar entre 1 e 31.'); return; }
   const id = locVal('pr-id') || uid();
-  if (!locUpsert('locProprietarios', {
+  const perfil = {
     id, nome, doc: locVal('pr-doc'), whatsapp: locVal('pr-whatsapp'), email: locVal('pr-email'),
     endereco: locVal('pr-endereco'), banco: locVal('pr-banco'), pix: locVal('pr-pix'),
     admPct: locVal('pr-adm'), diaRepasse: locVal('pr-dia'), clienteId: locVal('pr-cliente'), obs: locVal('pr-obs'),
-  })) return;
+    pessoaId: locProp(id)?.pessoaId || ''
+  };
+  sincronizarPessoaPerfilLocacaoV10(perfil, 'Proprietário');
+  if (!locUpsert('locProprietarios', perfil)) return;
   fecharModal('modal-loc'); renderLocSub(); toast('Proprietário salvo.');
 }
 
@@ -3614,12 +3723,15 @@ function salvarLocatario() {
   if (!cpfCnpjValido(locVal('lo-doc'))) { toast('CPF/CNPJ do locatário inválido.'); return; }
   if (!emailValido(locVal('lo-email'))) { toast('E-mail do locatário inválido.'); return; }
   const id = locVal('lo-id') || uid();
-  if (!locUpsert('locLocatarios', {
+  const perfil = {
     id, nome, doc: locVal('lo-doc'), whatsapp: locVal('lo-whatsapp'), email: locVal('lo-email'),
     profissao: locVal('lo-profissao'), renda: locVal('lo-renda'), tipoProcurado: locVal('lo-tipo'),
     faixaPreco: locVal('lo-faixa'), bairros: locVal('lo-bairros'), garantia: locVal('lo-garantia'),
     origem: locVal('lo-origem'), status: locVal('lo-status'), adesaoProcesso:locVal('lo-adesao'), adesaoMotivo:locVal('lo-adesao-motivo'), documentacaoStatus:locVal('lo-doc-status'), propostaEnviadaEm:locVal('lo-proposta-em'), clienteId: locVal('lo-cliente'), obs: locVal('lo-obs'),
-  })) return;
+    pessoaId: locLoca(id)?.pessoaId || ''
+  };
+  sincronizarPessoaPerfilLocacaoV10(perfil, 'Locatário');
+  if (!locUpsert('locLocatarios', perfil)) return;
   fecharModal('modal-loc'); renderLocSub(); toast('Locatário salvo.');
 }
 
@@ -3983,8 +4095,8 @@ function salvarCliente() {
   const doc = document.getElementById('c-doc').value.trim();
   const nascimento = document.getElementById('c-nascimento').value;
   const pctComissao = document.getElementById('n-comissao-pct').value;
-  if (!emailValido(email)) { toast('E-mail do cliente inválido.'); return; }
-  if (!cpfCnpjValido(doc)) { toast('CPF/CNPJ do cliente inválido.'); return; }
+  if (!emailValido(email)) { toast('E-mail da pessoa inválido.'); return; }
+  if (!cpfCnpjValido(doc)) { toast('CPF/CNPJ da pessoa inválido.'); return; }
   if (!dataNaoFutura(nascimento)) { toast('A data de nascimento não pode estar no futuro.'); return; }
   if (!numeroEntre(pctComissao, 0, 100)) { toast('A comissão deve ficar entre 0% e 100%.'); return; }
 
@@ -4084,7 +4196,7 @@ function salvarCliente() {
   };
   if (id) delete cliente.pessoaId;
 
-  let mensagemSucesso = 'Cliente cadastrado';
+  let mensagemSucesso = 'Oportunidade cadastrada';
   if (id) {
     const existing = state.clientes.find(c => c.id === id);
     if (!existing) { toast('Cliente não encontrado. Recarregue a tela.'); return; }
@@ -4100,12 +4212,12 @@ function salvarCliente() {
     existing.ultimaInteracao = hoje();
     mudancas.forEach(m => existing.historico.push({ data: hoje(), texto: m, auto: true }));
     if (mudancas.length === 0) existing.historico.push({ data: hoje(), texto: 'Cadastro atualizado', auto: true });
-    mensagemSucesso = 'Cliente atualizado';
+    mensagemSucesso = 'Oportunidade atualizada';
   } else {
     cliente.id = uid();
     cliente.criadoEm = hoje();
     cliente.ultimaInteracao = hoje();
-    cliente.historico = [{ data: hoje(), texto: 'Cliente cadastrado', auto: true }];
+    cliente.historico = [{ data: hoje(), texto: 'Oportunidade cadastrada', auto: true }];
     state.clientes.push(cliente);
   }
   const clienteSalvo = id ? state.clientes.find(c => c.id === id) : cliente;
@@ -4887,10 +4999,15 @@ function opcoesImoveisV5(selecionado) {
   return `<option value="">— sem imóvel —</option>` + state.imoveis.map(i => `<option value="${i.id}" ${i.id===selecionado?'selected':''}>${escHtml(i.codigo ? i.codigo+' · '+enderecoImovelV5(i) : enderecoImovelV5(i))}</option>`).join('');
 }
 function papeisPessoaV5(p) {
-  const derivados = new Set(p.papeis || []);
-  if (state.imovelProprietarios.some(v=>v.pessoaId===p.id)) derivados.add('Proprietário');
-  if (state.perfisBusca.some(v=>v.pessoaId===p.id)) derivados.add('Interessado');
-  if (state.clientes.some(c=>c.pessoaId===p.id)) derivados.add('Oportunidade');
+  const automaticos = new Set(['Lead','Cliente','Oportunidade','Proprietário','Interessado','Locatário']);
+  const derivados = new Set((p.papeis || []).filter(papel => !automaticos.has(papel)));
+  const oportunidades = state.clientes.filter(c => c.pessoaId === p.id);
+  if (oportunidades.length) derivados.add('Oportunidade');
+  if (oportunidades.some(c => c.status === 'Fechado')) derivados.add('Cliente');
+  if (oportunidades.some(c => c.status !== 'Fechado')) derivados.add('Lead');
+  if (state.imovelProprietarios.some(v => v.pessoaId === p.id)) derivados.add('Proprietário');
+  if (state.perfisBusca.some(v => v.pessoaId === p.id)) derivados.add('Interessado');
+  if (state.locLocatarios.some(v => v.pessoaId === p.id) || state.locContratos.some(v => v.locatarioPessoaId === p.id)) derivados.add('Locatário');
   return [...derivados];
 }
 function renderPessoasV5(main) {
@@ -4930,7 +5047,7 @@ function abrirVisao360PessoaV5(id) {
     <div class="stats-grid"><div class="stat-card"><div class="label">Imóveis</div><div class="value">${imoveis.length}</div></div><div class="stat-card verde"><div class="label">Negócios</div><div class="value">${negocios.length}</div></div><div class="stat-card morno"><div class="label">Perfis de busca</div><div class="value">${perfis.length}</div></div><div class="stat-card frio"><div class="label">Avaliações AVP</div><div class="value">${avaliacoes.length}</div></div></div>
     <div class="tabs"><button class="tab-btn active" data-tab="dados">Dados</button><button class="tab-btn" data-tab="imoveis">Imóveis</button><button class="tab-btn" data-tab="negocios">Negócios</button><button class="tab-btn" data-tab="busca">Busca / AVP</button><button class="tab-btn" data-tab="tarefas">Tarefas (${tarefas.filter(t=>!t.concluida).length})</button><button class="tab-btn" data-tab="historico">Histórico</button></div>
     <div class="tab-content active" data-tab="dados">${info('Nome',escHtml(p.nome))}${info('CPF / CNPJ',escHtml(p.doc||''))}${info('WhatsApp',escHtml(p.whatsapp||''))}${info('Telefone',escHtml(p.telefone||''))}${info('E-mail',escHtml(p.email||''))}${info('Profissão',escHtml(p.profissao||''))}${info('Endereço',escHtml(p.endereco||''))}${p.observacoes?`<div style="margin-top:14px"><b style="color:var(--azul-escuro)">Observações:</b><div style="background:var(--azul-bg);padding:10px;border-radius:6px;margin-top:6px;white-space:pre-wrap">${escHtml(p.observacoes)}</div></div>`:''}</div>
-    <div class="tab-content" data-tab="imoveis"><div class="actions" style="margin-bottom:12px"><button class="btn secondary small" onclick="abrirFormImovelV5()">+ Novo imóvel</button></div>${propertyHtml||'<div class="empty">Nenhum imóvel vinculado a esta pessoa.</div>'}</div>
+    <div class="tab-content" data-tab="imoveis"><div class="actions" style="margin-bottom:12px"><button class="btn secondary small" onclick="abrirFormImovelV5(null,'${id}')">+ Novo imóvel desta pessoa</button></div>${propertyHtml||'<div class="empty">Nenhum imóvel vinculado a esta pessoa.</div>'}</div>
     <div class="tab-content" data-tab="negocios"><div class="actions" style="margin-bottom:12px"><button class="btn verde small" onclick="abrirLeadPessoaV5('${id}')">+ Novo negócio</button></div>${negocioHtml||'<div class="empty">Nenhum negócio registrado.</div>'}</div>
     <div class="tab-content" data-tab="busca">${perfilHtml||'<div class="empty">Nenhum perfil de busca registrado.</div>'}${avpHtml?`<h4 style="color:var(--azul-escuro);margin:16px 0 6px">📐 Avaliações AVP</h4>${avpHtml}`:''}<button class="btn secondary small" style="margin-top:10px" onclick="abrirFormAvaliacaoV5(null,'','${id}')">+ Nova avaliação AVP</button></div>
     <div class="tab-content" data-tab="tarefas"><button class="btn small" style="margin-bottom:12px" onclick="abrirModalTarefa(null,'${negocios[0]?.id||''}')">+ Nova tarefa</button>${tarefaHtml||'<div class="empty">Nenhuma tarefa relacionada.</div>'}</div>
@@ -4939,34 +5056,36 @@ function abrirVisao360PessoaV5(id) {
   document.querySelectorAll('#modal-detalhe .tab-btn').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('#modal-detalhe .tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('#modal-detalhe .tab-content').forEach(c=>c.classList.remove('active'));btn.classList.add('active');document.querySelector(`#modal-detalhe .tab-content[data-tab="${btn.dataset.tab}"]`).classList.add('active');}));
   aplicarAcessibilidade(document.getElementById('modal-detalhe'));
 }
-function abrirFormPessoaV5(id, retornoImovelId) {
-  const p = pessoaV5(id) || { papeis:[] }; const papeis=['Lead','Cliente','Proprietário','Locatário','Parceiro','Fornecedor'];
+function abrirFormPessoaV5(id, retornoImovelId, contexto) {
+  const p = pessoaV5(id) || { papeis:[] }; const papeis=['Parceiro','Fornecedor','Investidor'];
   const imoveis = id ? state.imovelProprietarios.filter(v=>v.pessoaId===id).map(v=>({v,i:imovelV5(v.imovelId)})).filter(x=>x.i) : [];
   const perfis = id ? state.perfisBusca.filter(x=>x.pessoaId===id) : [];
   const coms = id ? state.comissoes.filter(x=>x.pessoaId===id) : [];
   const avaliacoesPessoa = id ? state.avaliacoes.filter(x=>x.pessoaId===id) : [];
-  abrirModalLoc(id?'Pessoa · visão 360°':'Nova pessoa', `<input type="hidden" id="pv5-id" value="${escAttr(id||'')}"><input type="hidden" id="pv5-retorno" value="${escAttr(retornoImovelId||'')}">
+  abrirModalLoc(id?'Pessoa · visão 360°':'Nova pessoa', `<input type="hidden" id="pv5-id" value="${escAttr(id||'')}"><input type="hidden" id="pv5-retorno" value="${escAttr(retornoImovelId||'')}"><input type="hidden" id="pv5-contexto" value="${escAttr(contexto||'')}">
     <div class="section-title">Dados únicos da pessoa</div><div class="form-grid">
     ${fG('Nome completo / Razão social *',fInput('pv5-nome',p.nome||''),'two')}${fG('Tipo',fSelect('pv5-tipo',['Física','Jurídica'],p.tipoPessoa||'Física'))}
     ${fG('CPF / CNPJ',fInput('pv5-doc',p.doc||''))}${fG('WhatsApp',fInput('pv5-whatsapp',p.whatsapp||''))}${fG('Telefone',fInput('pv5-telefone',p.telefone||''))}
     ${fG('E-mail',fInput('pv5-email',p.email||''),'two')}${fG('Profissão',fInput('pv5-profissao',p.profissao||''))}${fG('Endereço',fInput('pv5-endereco',p.endereco||''),'two')}
-    ${fG('Papéis',`<div class="checkbox-group">${papeis.map(x=>`<label><input type="checkbox" class="pv5-papel" value="${x}" ${(p.papeis||[]).includes(x)?'checked':''}> ${x}</label>`).join('')}</div>`,'full')}
+    ${fG('Banco / conta para repasse',fInput('pv5-banco',p.banco||''),'two')}${fG('Chave Pix',fInput('pv5-pix',p.pix||''))}${fG('Taxa de administração padrão',fInput('pv5-adm',p.admPct||'',{percent:true,unit:'%'}))}${fG('Dia de repasse',fInput('pv5-dia-repasse',p.diaRepasse||'',{type:'number',integer:true,unit:'dia'}))}
+    ${fG('Papéis complementares',`<div class="checkbox-group">${papeis.map(x=>`<label><input type="checkbox" class="pv5-papel" value="${x}" ${(p.papeis||[]).includes(x)?'checked':''}> ${x}</label>`).join('')}</div><small style="display:block;margin-top:6px;color:var(--cinza)">Lead, Cliente, Oportunidade, Proprietário e Locatário são calculados automaticamente pelos vínculos reais.</small>`,'full')}
     ${fG('Observações',fTextarea('pv5-obs',p.observacoes||''),'full')}</div>
     <div class="section-title">🏠 Imóvel de propriedade</div><div class="form-grid">${fG('Imóvel que esta pessoa possui',`<select id="pv5-imovel-proprietario">${opcoesImoveisV5('')}</select>`,'two')}${fG('Percentual de propriedade',fInput('pv5-percentual','100',{percent:true,unit:'%'}))}</div><small style="color:var(--cinza)">Ao salvar, o vínculo Pessoa ↔ Imóvel será criado automaticamente. Se esta pessoa foi aberta a partir de um imóvel, ele já será usado.</small>
     ${id?`<div class="section-title">Relacionamentos 360°</div><div class="card"><b>Imóveis de propriedade</b>${imoveis.map(x=>`<div class="owner-row"><span>${escHtml(enderecoImovelV5(x.i))} · ${fmtNumeroBR(parsePercentual(x.v.percentual),2)}%</span><button class="btn secondary small" onclick="abrirFormImovelV5('${x.i.id}')">Abrir imóvel</button></div>`).join('')||'<div class="entity-meta">Nenhum imóvel vinculado.</div>'}</div>
     <div class="card"><b>Perfis de busca</b>${perfis.map(x=>`<div class="owner-row"><span>${escHtml((x.finalidades||[]).join(', '))} · ${escHtml(x.tipo||'qualquer tipo')} · até R$ ${fmtMoney(parseMoney(x.valorMax))}</span></div>`).join('')||'<div class="entity-meta">Nenhum perfil.</div>'}</div>
     <div class="card"><b>Comissões vinculadas</b>${coms.map(x=>`<div class="owner-row"><span>${escHtml(x.descricao||x.tipo)} · R$ ${fmtMoney(parseMoney(x.valorPrevisto))}</span><button class="btn secondary small" onclick="abrirFormComissaoV5('${x.id}')">Abrir</button></div>`).join('')||'<div class="entity-meta">Nenhuma comissão.</div>'}</div>
     <div class="card"><b>Avaliações AVP relacionadas</b>${avaliacoesPessoa.map(x=>{const i=imovelV5(x.imovelId);return `<div class="owner-row"><span>${escHtml(i?enderecoImovelV5(i):'Imóvel')} · ${x.total||0}/50 · ${escHtml(x.classificacao||avpClasse(x.total||0))}</span><button class="btn secondary small" onclick="abrirFormAvaliacaoV5('${x.id}')">Abrir</button></div>`}).join('')||'<div class="entity-meta">Nenhuma avaliação relacionada.</div>'}<button class="btn secondary small" onclick="abrirFormAvaliacaoV5(null,'','${id}')">+ Nova avaliação</button></div>
-    <div class="entity-actions"><button class="btn secondary" onclick="abrirLeadPessoaV5('${id}')">Abrir oportunidade</button><button class="btn danger small" onclick="excluirPessoaV5('${id}')">Excluir pessoa</button></div>`:''}`, salvarPessoaV5);
+    <div class="entity-actions"><button class="btn secondary" onclick="abrirLeadPessoaV5('${id}')">+ Nova oportunidade</button><button class="btn danger small" onclick="excluirPessoaV5('${id}')">Excluir pessoa</button></div>`:''}`, salvarPessoaV5);
 }
 function salvarPessoaV5() {
   const id=locVal('pv5-id'), nome=locVal('pv5-nome'), doc=locVal('pv5-doc'), email=locVal('pv5-email');
   if (!nome) return toast('Nome é obrigatório.'); if (!cpfCnpjValido(doc)) return toast('CPF/CNPJ inválido.'); if (!emailValido(email)) return toast('E-mail inválido.');
   const duplicada=state.pessoas.find(p=>p.id!==id && doc && p.doc.replace(/\D/g,'')===doc.replace(/\D/g,'')); if(duplicada) return toast('Já existe uma pessoa com este CPF/CNPJ.');
   let p=pessoaV5(id); if(!p){p={id:uid(),criadoEm:hoje()};state.pessoas.push(p);} const papeis=Array.from(document.querySelectorAll('.pv5-papel:checked')).map(x=>x.value);
-  Object.assign(p,{nome,tipoPessoa:locVal('pv5-tipo'),doc,whatsapp:locVal('pv5-whatsapp'),telefone:locVal('pv5-telefone'),email,profissao:locVal('pv5-profissao'),endereco:locVal('pv5-endereco'),observacoes:locVal('pv5-obs'),papeis,atualizadoEm:hoje()});
-  const retorno=locVal('pv5-retorno'), imovelId=locVal('pv5-imovel-proprietario')||retorno;
+  Object.assign(p,{nome,tipoPessoa:locVal('pv5-tipo'),doc,whatsapp:locVal('pv5-whatsapp'),telefone:locVal('pv5-telefone'),email,profissao:locVal('pv5-profissao'),endereco:locVal('pv5-endereco'),banco:locVal('pv5-banco'),pix:locVal('pv5-pix'),admPct:locVal('pv5-adm'),diaRepasse:locVal('pv5-dia-repasse'),observacoes:locVal('pv5-obs'),papeis,atualizadoEm:hoje()});
+  const retorno=locVal('pv5-retorno'), contexto=locVal('pv5-contexto'), imovelId=locVal('pv5-imovel-proprietario')||retorno;
   if(imovelId){const pct=parsePercentual(locVal('pv5-percentual'))||100;if(pct<=0||pct>100)return toast('Percentual de propriedade deve ficar entre 0 e 100.');const soma=state.imovelProprietarios.filter(x=>x.imovelId===imovelId&&x.pessoaId!==p.id).reduce((s,x)=>s+parsePercentual(x.percentual),0);if(soma+pct>100.001)return toast(`A soma das participações ultrapassa 100% (${fmtNumeroBR(soma+pct,2)}%).`);let v=state.imovelProprietarios.find(x=>x.imovelId===imovelId&&x.pessoaId===p.id);if(!v){v={id:uid(),imovelId,pessoaId:p.id};state.imovelProprietarios.push(v);}Object.assign(v,{percentual:pct,principal:state.imovelProprietarios.filter(x=>x.imovelId===imovelId).length===1});adicionarPapel(p,'Proprietário');}
+  if(contexto==='proprietario' && !imovelId) adicionarPapel(p,'Proprietário');
   state.clientes.filter(c=>c.pessoaId===p.id).forEach(c=>Object.assign(c,{nome:p.nome,doc:p.doc,whatsapp:p.whatsapp,telefone:p.telefone,email:p.email,profissao:p.profissao}));
   if(!salvar(state))return; fecharModal('modal-loc'); toast('Pessoa salva com vínculos atualizados.'); render(); if(retorno)abrirFormImovelV5(retorno);
 }
@@ -4975,7 +5094,7 @@ function excluirPessoaV5(id) {
   if(deps)return toast('Pessoa possui vínculos. Remova ou transfira os relacionamentos primeiro.'); if(!confirm('Excluir esta pessoa?'))return; state.pessoas=state.pessoas.filter(x=>x.id!==id); salvar(state); fecharModal('modal-loc'); render();
 }
 function abrirLeadPessoaV5(id) {
-  const p=pessoaV5(id); if(!p)return; fecharModal('modal-loc'); const c=state.clientes.find(x=>x.pessoaId===id); if(c)return abrirModalCliente(c.id);
+  const p=pessoaV5(id); if(!p)return; fecharModal('modal-loc');
   abrirModalCliente(); document.getElementById('c-nome').value=p.nome||''; document.getElementById('c-doc').value=p.doc||''; document.getElementById('c-whatsapp').value=p.whatsapp||''; document.getElementById('c-telefone').value=p.telefone||''; document.getElementById('c-email').value=p.email||''; document.getElementById('form-cliente').dataset.pessoaId=id;
 }
 
@@ -5046,8 +5165,8 @@ function imprimirFichaImovelV5(id) {
   const html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ficha do imóvel - ${escHtml(i.codigo||i.tipo||'Imóvel')}</title><style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#17324d;max-width:900px;margin:0 auto;padding:20px;font-size:11px}.no-print{text-align:center;margin-bottom:16px}.btn{background:#006994;color:#fff;border:0;padding:8px 18px;border-radius:5px;font-weight:bold}.header{border-bottom:3px solid #006994;padding-bottom:10px;margin-bottom:14px}.header h1{margin:0;color:#003d5b;font-size:20px}.sub{color:#666;margin-top:4px}h2{background:#003d5b;color:#fff;padding:7px 10px;font-size:12px;margin:14px 0 6px}table{width:100%;border-collapse:collapse;margin-bottom:8px}td{padding:6px 8px;border:1px solid #ddd;vertical-align:top}td.lbl{background:#e3f2f5;font-weight:bold;width:30%;color:#003d5b}.chips span{display:inline-block;padding:3px 7px;border:1px solid #9bb7c5;border-radius:12px;margin:2px;color:#006994}.footer{border-top:1px solid #ddd;margin-top:20px;padding-top:10px;text-align:center;color:#666;font-size:9px}@media print{.no-print{display:none}h2,td.lbl{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="no-print"><button class="btn" onclick="window.print()">🖨 Imprimir / Salvar em PDF</button></div><div class="header"><h1>${escHtml(i.codigo||i.tipo||'Ficha completa do imóvel')}</h1><div class="sub">${escHtml(enderecoImovelV5(i))} · Gerado em ${new Date().toLocaleString('pt-BR')}</div></div><h2>Identificação e localização</h2><table>${linha('Tipo',escHtml(i.tipo))}${linha('Finalidade',escHtml(i.finalidadeUso))}${linha('Zona / Bairro',escHtml([i.zona,i.bairro].filter(Boolean).join(' · ')))}${linha('Cidade',escHtml(i.cidade))}${linha('Condomínio',escHtml([i.condominioTipo,i.condominioNome,i.condominio].filter(Boolean).join(' · ')))}</table><h2>Valores, metragem e detalhes</h2><table>${linha('Valor pedido / venda',i.valorVenda?'R$ '+escHtml(i.valorVenda):'')}${linha('Valor avaliado',i.valorAvaliado?'R$ '+escHtml(i.valorAvaliado):'')}${linha('Área útil / total',`${escHtml(i.areaUtil||'—')} m² / ${escHtml(i.areaTotal||'—')} m²`)}${linha('Hectares / alqueires',`${escHtml(i.hectares||'—')} ha / ${escHtml(i.alqueires||'—')} alq.`)}${linha('Dormitórios / suítes / banheiros',`${escHtml(i.quartos||'—')} / ${escHtml(i.suites||'—')} / ${escHtml(i.banheiros||'—')}`)}${linha('Vagas / mobiliado',`${escHtml(i.vagas||'—')} / ${escHtml(i.mobilia||i.mobiliado||'—')}`)}${linha('Andar / torres',`${escHtml(i.andar||'—')} / ${escHtml(i.torres||'—')}`)}</table><h2>Comissão de captação</h2><table>${linha('Percentual',i.comissaoVendaPct?escHtml(i.comissaoVendaPct)+'%':'')}${linha('Valor calculado',i.valorComissaoVenda?'R$ '+escHtml(i.valorComissaoVenda):'')}${linha('Financiamento',escHtml(i.financiamento))}${linha('Regularização / situação',escHtml([i.regularizado,i.situacao].filter(Boolean).join(' · ')))}</table><h2>Documentação</h2><div class="chips">${IMOVEL_DOCUMENTOS_V5.map(([k,l])=>`<span>${docs[k]?'✓':'—'} ${l}</span>`).join('')}</div><h2>Amenidades e características</h2><div class="chips">${(i.amenidades||[]).map(x=>`<span>${escHtml(x)}</span>`).join('')||'—'}</div><table>${linha('Características',`<span style="white-space:pre-wrap">${escHtml(i.caracteristicas||'')}</span>`)}${linha('Observações',`<span style="white-space:pre-wrap">${escHtml(i.observacoes||i.obs||'')}</span>`)}${linha('Proprietário(s)',escHtml(donos.join(' · ')))}</table><div class="footer">Sistema de Gestão Imobiliária v${APP_VERSION} · André Barros</div><script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`;
   const w=window.open('','_blank'); if(!w)return toast('Permita pop-ups para imprimir a ficha.'); w.document.write(html); w.document.close();
 }
-function abrirFormImovelV5(id) {
-  const i=imovelV5(id)||{vendaAtiva:true,locacaoAtiva:false};
+function abrirFormImovelV5(id, proprietarioPreselecionado, contexto) {
+  const i=imovelV5(id)||{vendaAtiva:contexto!=='locacao',locacaoAtiva:contexto==='locacao'};
   const links=id?state.imovelProprietarios.filter(v=>v.imovelId===id):[];
   const interessados=id?state.interesses.filter(x=>x.imovelId===id):[];
   const contratos=id?state.locContratos.filter(x=>x.imovelV5Id===id):[];
@@ -5055,7 +5174,7 @@ function abrirFormImovelV5(id) {
   const amenidades=amenidadesImovelV5(i);
   const docHtml=IMOVEL_DOCUMENTOS_V5.map(([key,label])=>`<label class="doc-item"><input type="checkbox" class="iv5-doc" data-key="${key}" ${docs[key]?'checked':''}> ${label}</label>`).join('');
   const amenHtml=IMOVEL_AMENIDADES_V5.map(x=>`<label><input type="checkbox" class="iv5-amenidade" value="${escAttr(x)}" ${amenidades.includes(x)?'checked':''}> ${x}</label>`).join('');
-  const novoProprietarioHtml=id?'':`<div class="section-title">👥 Proprietário principal</div><div class="form-grid">${fG('Proprietário *',`<select id="iv5-proprietario">${opcoesPessoasV5('')}</select>`)}${fG('Percentual',fInput('iv5-percentual','100',{percent:true,unit:'%'}))}</div><small style="color:var(--cinza)">O imóvel será conectado automaticamente à pessoa selecionada ao salvar.</small>`;
+  const novoProprietarioHtml=id?'':`<div class="section-title">👥 Proprietário principal</div><div class="form-grid">${fG('Proprietário *',`<select id="iv5-proprietario">${opcoesPessoasV5(proprietarioPreselecionado||'')}</select>`)}${fG('Percentual',fInput('iv5-percentual','100',{percent:true,unit:'%'}))}</div><small style="color:var(--cinza)">O imóvel será conectado automaticamente à pessoa selecionada ao salvar.</small>`;
   let body=`<input type="hidden" id="iv5-id" value="${escAttr(id||'')}">
   <div class="section-title">🏠 Identificação e localização</div><div class="form-grid four">
     ${fG('Código',fInput('iv5-codigo',i.codigo||''))}${fG('Tipo',fSelect('iv5-tipo',['Casa','Apartamento','Terreno / Lote','Sala comercial','Galpão','Rural / Chácara','Outro'],i.tipo||'',true))}${fG('Finalidade',fSelect('iv5-finalidade',['Venda','Locação','Venda e locação','Investimento'],i.finalidadeUso||'',true))}
@@ -5079,7 +5198,7 @@ function abrirFormImovelV5(id) {
     <div id="iv5-campos-locacao" class="form-group full"><div class="form-grid">${fG('Aluguel mensal',fInput('iv5-aluguel',i.aluguel||'',{money:true}))}${fG('Status da locação',fSelect('iv5-status-loc',['Em captação','Disponível','Reservado','Locado','Manutenção','Inativo'],i.locacaoStatus||'Em captação'))}${fG('Condomínio mensal',fInput('iv5-condominio-loc',i.condominio||'',{money:true}))}${fG('IPTU mensal/anual',fInput('iv5-iptu-loc',i.iptu||'',{money:true}))}</div></div>
   </div>
   <div class="section-title">📝 Características e observações</div><div class="form-grid">${fG('Características / diferenciais',fTextarea('iv5-caracteristicas',i.caracteristicas||''),'full')}${fG('Observações sobre o imóvel',fTextarea('iv5-obs',i.observacoes||i.obs||''),'full')}</div>
-  ${id?`<div class="section-title">👥 Proprietários</div><div class="card">${links.map(v=>{const p=pessoaV5(v.pessoaId);return `<div class="owner-row"><span><b>${escHtml(p?.nome||'Pessoa')}</b> · ${fmtNumeroBR(parsePercentual(v.percentual),2)}%${v.principal?' · principal':''}</span><span><button class="btn secondary small" onclick="abrirFormPessoaV5('${v.pessoaId}','${id}')">Editar</button> <button class="btn danger small" onclick="removerProprietarioV5('${v.id}')">Remover</button></span></div>`}).join('')||'<div class="entity-meta">Nenhum proprietário vinculado.</div>'}<div class="form-grid" style="margin-top:12px">${fG('Vincular pessoa',`<select id="iv5-proprietario">${opcoesPessoasV5('')}</select>`)}${fG('Percentual',fInput('iv5-percentual','100',{percent:true,unit:'%'}))}</div><button class="btn secondary small" onclick="abrirFormPessoaV5(null,'${id}')">+ Cadastrar nova pessoa</button></div><div class="section-title">📊 Operação 360°</div><div class="result-grid"><div class="result-box"><small>Interessados</small><b>${interessados.length}</b></div><div class="result-box"><small>Contratos</small><b>${contratos.length}</b></div><div class="result-box"><small>Comissões</small><b>${state.comissoes.filter(x=>x.imovelId===id).length}</b></div><div class="result-box"><small>Simulações</small><b>${state.simulacoesFinanciamento.filter(x=>x.imovelId===id).length+state.simulacoesInvestimento.filter(x=>x.imovelId===id).length}</b></div><div class="result-box"><small>Avaliações AVP</small><b>${state.avaliacoes.filter(x=>x.imovelId===id).length}</b></div></div><button class="btn secondary small" onclick="abrirFormAvaliacaoV5(null,'${id}')">+ Nova avaliação AVP</button> <button class="btn danger small" onclick="excluirImovelV5('${id}')">Excluir imóvel</button>`:`<div class="notice">Salve o imóvel para então vincular pessoas e acessar a visão 360°.</div>`}`;
+  ${id?`<div class="section-title">👥 Proprietários</div><div class="card">${links.map(v=>{const p=pessoaV5(v.pessoaId);return `<div class="owner-row"><span><b>${escHtml(p?.nome||'Pessoa')}</b> · ${fmtNumeroBR(parsePercentual(v.percentual),2)}%${v.principal?' · principal':''}</span><span><button class="btn secondary small" onclick="abrirFormPessoaV5('${v.pessoaId}','${id}')">Editar</button> <button class="btn danger small" onclick="removerProprietarioV5('${v.id}')">Remover</button></span></div>`}).join('')||'<div class="entity-meta">Nenhum proprietário vinculado.</div>'}<div class="form-grid" style="margin-top:12px">${fG('Vincular pessoa',`<select id="iv5-proprietario">${opcoesPessoasV5(proprietarioPreselecionado||'')}</select>`)}${fG('Percentual',fInput('iv5-percentual','100',{percent:true,unit:'%'}))}</div><button class="btn secondary small" onclick="abrirFormPessoaV5(null,'${id}')">+ Cadastrar nova pessoa</button></div><div class="section-title">📊 Operação 360°</div><div class="result-grid"><div class="result-box"><small>Interessados</small><b>${interessados.length}</b></div><div class="result-box"><small>Contratos</small><b>${contratos.length}</b></div><div class="result-box"><small>Comissões</small><b>${state.comissoes.filter(x=>x.imovelId===id).length}</b></div><div class="result-box"><small>Simulações</small><b>${state.simulacoesFinanciamento.filter(x=>x.imovelId===id).length+state.simulacoesInvestimento.filter(x=>x.imovelId===id).length}</b></div><div class="result-box"><small>Avaliações AVP</small><b>${state.avaliacoes.filter(x=>x.imovelId===id).length}</b></div></div><button class="btn secondary small" onclick="abrirFormAvaliacaoV5(null,'${id}')">+ Nova avaliação AVP</button> <button class="btn danger small" onclick="excluirImovelV5('${id}')">Excluir imóvel</button>`:`<div class="notice">Salve o imóvel para então vincular pessoas e acessar a visão 360°.</div>`}`;
   body += novoProprietarioHtml;
   body += id ? `<div class="actions" style="margin-top:14px"><button type="button" class="btn secondary small iv5-imprimir" data-id="${id}">🖨 Imprimir ficha completa / Salvar em PDF</button></div>` : '';
   abrirModalLoc(id?'Imóvel · ficha completa 360°':'Novo imóvel · ficha completa',body,salvarImovelV5);
@@ -5104,9 +5223,70 @@ function salvarImovelV5(){
 
 /* ===== CONTRATOS UNIFICADOS ===== */
 function renderContratosV5(main){const ativos=state.locContratos.filter(c=>c.status==='Ativo').length,total=state.locContratos.reduce((s,c)=>s+parseMoney(c.aluguel),0);main.innerHTML=`<div class="page-header"><div><h2>Contratos e administração</h2><small>Contratos ligados ao imóvel e às pessoas da base única.</small></div><button class="btn verde" onclick="abrirFormContratoV5()">+ Novo contrato</button></div><div class="stats-grid"><div class="stat-card"><div class="label">Contratos</div><div class="value">${state.locContratos.length}</div></div><div class="stat-card verde"><div class="label">Ativos</div><div class="value">${ativos}</div></div><div class="stat-card"><div class="label">Aluguéis cadastrados</div><div class="value" style="font-size:20px">R$ ${fmtMoney(total)}</div></div></div><div class="card"><table><thead><tr><th>Imóvel</th><th>Proprietário</th><th>Locatário</th><th>Aluguel</th><th>Período</th><th>Status</th><th></th></tr></thead><tbody>${state.locContratos.map(c=>{const i=imovelV5(c.imovelV5Id),pr=pessoaV5(c.proprietarioPessoaId),lo=pessoaV5(c.locatarioPessoaId);return `<tr><td>${escHtml(i?enderecoImovelV5(i):'Vínculo antigo')}</td><td>${escHtml(pr?.nome||'—')}</td><td>${escHtml(lo?.nome||'—')}</td><td>R$ ${fmtMoney(parseMoney(c.aluguel))}</td><td>${fmtDataCurta(c.dataInicio)} a ${fmtDataCurta(c.dataFim)}</td><td>${escHtml(c.status||'—')}</td><td><button class="btn small" onclick="abrirFormContratoV5('${c.id}')">Editar</button></td></tr>`}).join('')||'<tr><td colspan="7">Nenhum contrato cadastrado.</td></tr>'}</tbody></table></div>`;}
-function abrirFormContratoV5(id){const c=state.locContratos.find(x=>x.id===id)||{};abrirModalLoc(id?'Editar contrato':'Novo contrato',`<input type="hidden" id="ctv5-id" value="${escAttr(id||'')}"><div class="form-grid">${fG('Imóvel *',`<select id="ctv5-imovel">${opcoesImoveisV5(c.imovelV5Id)}</select>`,'two')}${fG('Proprietário *',`<select id="ctv5-prop">${opcoesPessoasV5(c.proprietarioPessoaId)}</select>`,'two')}${fG('Locatário *',`<select id="ctv5-locatario">${opcoesPessoasV5(c.locatarioPessoaId)}</select>`,'two')}${fG('Aluguel mensal',fInput('ctv5-aluguel',c.aluguel||'',{money:true}))}${fG('Administração %',fInput('ctv5-adm',c.admPct||'',{type:'number'}))}${fG('Início',fInput('ctv5-inicio',c.dataInicio||'',{type:'date'}))}${fG('Fim',fInput('ctv5-fim',c.dataFim||'',{type:'date'}))}${fG('Status',fSelect('ctv5-status',CONTRATO_STATUS,c.status||'Em elaboração'))}${fG('Garantia',fSelect('ctv5-garantia',GARANTIAS,c.garantiaTipo||'',true))}${fG('Índice de reajuste',fSelect('ctv5-indice',INDICES,c.indice||'IPCA'))}${fG('Observações',fTextarea('ctv5-obs',c.obs||''),'full')}</div>${id?`<button class="btn danger small" onclick="excluirContratoV5('${id}')">Excluir contrato</button>`:''}`,salvarContratoV5);}
-function salvarContratoV5(){const id=locVal('ctv5-id'),imovelId=locVal('ctv5-imovel'),prop=locVal('ctv5-prop'),locatario=locVal('ctv5-locatario'),inicio=locVal('ctv5-inicio'),fim=locVal('ctv5-fim');if(!imovelId||!prop||!locatario)return toast('Selecione imóvel, proprietário e locatário.');if(prop===locatario)return toast('Proprietário e locatário devem ser pessoas distintas.');if(inicio&&fim&&fim<inicio)return toast('A data final deve ser posterior ao início.');let c=state.locContratos.find(x=>x.id===id);if(!c){c={id:uid()};state.locContratos.push(c);}Object.assign(c,{imovelV5Id:imovelId,proprietarioPessoaId:prop,locatarioPessoaId:locatario,aluguel:locVal('ctv5-aluguel'),admPct:locVal('ctv5-adm'),dataInicio:inicio,dataFim:fim,status:locVal('ctv5-status'),garantiaTipo:locVal('ctv5-garantia'),indice:locVal('ctv5-indice'),obs:locVal('ctv5-obs')});adicionarPapel(pessoaV5(prop),'Proprietário');adicionarPapel(pessoaV5(locatario),'Locatário');const im=imovelV5(imovelId);if(im){im.locacaoAtiva=true;if(c.status==='Ativo')im.locacaoStatus='Locado';}if(!salvar(state))return;fecharModal('modal-loc');render();toast('Contrato salvo e vínculos atualizados.');}
+function opcoesProprietariosImovelV10(imovelId, selecionado) {
+  const donos = proprietariosImovelV10(imovelId);
+  if (!donos.length) return '<option value="">— vincule o proprietário ao imóvel —</option>';
+  return '<option value="">— selecione —</option>' + donos.map(({pessoa}) => `<option value="${pessoa.id}" ${pessoa.id===selecionado?'selected':''}>${escHtml(pessoa.nome)}${pessoa.doc?' · '+escHtml(pessoa.doc):''}</option>`).join('');
+}
+function atualizarProprietariosContratoV10() {
+  const imovelId=locVal('ctv5-imovel'), proprietario=document.getElementById('ctv5-prop'), imovel=imovelV5(imovelId);
+  if (proprietario) setSafeHTML(proprietario, opcoesProprietariosImovelV10(imovelId,''));
+  const aluguel=document.getElementById('ctv5-aluguel'); if(aluguel && imovel?.aluguel) aluguel.value=imovel.aluguel;
+}
+function abrirFormContratoV5(id){const c=state.locContratos.find(x=>x.id===id)||{};abrirModalLoc(id?'Editar contrato':'Novo contrato',`<input type="hidden" id="ctv5-id" value="${escAttr(id||'')}"><div class="notice">O proprietário disponível aqui é sempre aquele que está vinculado à ficha do imóvel.</div><div class="form-grid">${fG('Imóvel *',`<select id="ctv5-imovel" onchange="atualizarProprietariosContratoV10()">${opcoesImoveisV5(c.imovelV5Id)}</select>`,'two')}${fG('Proprietário do imóvel *',`<select id="ctv5-prop">${opcoesProprietariosImovelV10(c.imovelV5Id,c.proprietarioPessoaId)}</select>`,'two')}${fG('Locatário *',`<select id="ctv5-locatario">${opcoesPessoasV5(c.locatarioPessoaId)}</select>`,'two')}${fG('Aluguel mensal',fInput('ctv5-aluguel',c.aluguel||'',{money:true}))}${fG('Administração %',fInput('ctv5-adm',c.admPct||'',{type:'number'}))}${fG('Início',fInput('ctv5-inicio',c.dataInicio||'',{type:'date'}))}${fG('Fim',fInput('ctv5-fim',c.dataFim||'',{type:'date'}))}${fG('Status',fSelect('ctv5-status',CONTRATO_STATUS,c.status||'Em elaboração'))}${fG('Garantia',fSelect('ctv5-garantia',GARANTIAS,c.garantiaTipo||'',true))}${fG('Índice de reajuste',fSelect('ctv5-indice',INDICES,c.indice||'IPCA'))}${fG('Observações',fTextarea('ctv5-obs',c.obs||''),'full')}</div>${id?`<button class="btn danger small" onclick="excluirContratoV5('${id}')">Excluir contrato</button>`:''}`,salvarContratoV5);}
+function salvarContratoV5(){const id=locVal('ctv5-id'),imovelId=locVal('ctv5-imovel'),prop=locVal('ctv5-prop'),locatario=locVal('ctv5-locatario'),inicio=locVal('ctv5-inicio'),fim=locVal('ctv5-fim');if(!imovelId||!prop||!locatario)return toast('Selecione imóvel, proprietário e locatário.');if(!state.imovelProprietarios.some(v=>v.imovelId===imovelId&&v.pessoaId===prop))return toast('O proprietário selecionado precisa estar vinculado à ficha deste imóvel.');if(prop===locatario)return toast('Proprietário e locatário devem ser pessoas distintas.');if(inicio&&fim&&fim<inicio)return toast('A data final deve ser posterior ao início.');let c=state.locContratos.find(x=>x.id===id);if(!c){c={id:uid()};state.locContratos.push(c);}Object.assign(c,{imovelV5Id:imovelId,proprietarioPessoaId:prop,locatarioPessoaId:locatario,aluguel:locVal('ctv5-aluguel'),admPct:locVal('ctv5-adm'),dataInicio:inicio,dataFim:fim,status:locVal('ctv5-status'),garantiaTipo:locVal('ctv5-garantia'),indice:locVal('ctv5-indice'),obs:locVal('ctv5-obs')});adicionarPapel(pessoaV5(prop),'Proprietário');adicionarPapel(pessoaV5(locatario),'Locatário');const im=imovelV5(imovelId);if(im){im.locacaoAtiva=true;if(c.status==='Ativo')im.locacaoStatus='Locado';}if(!salvar(state))return;fecharModal('modal-loc');render();toast('Contrato salvo e vínculos atualizados.');}
 function excluirContratoV5(id){if(state.tarefas.some(t=>t.vinculoTipo==='contrato'&&t.vinculoId===id))return toast('Contrato possui tarefas vinculadas.');if(!confirm('Excluir este contrato?'))return;state.locContratos=state.locContratos.filter(x=>x.id!==id);salvar(state);fecharModal('modal-loc');render();}
+
+/* ===== LOCAÇÃO SOBRE A BASE ÚNICA ===== */
+function imoveisLocacaoV10() { return state.imoveis.filter(i => i.locacaoAtiva); }
+function proprietariosImovelV10(imovelId) {
+  return state.imovelProprietarios.filter(v => v.imovelId === imovelId).map(v => ({ vinculo:v, pessoa:pessoaV5(v.pessoaId) })).filter(x => x.pessoa);
+}
+function renderLocPainel(cont) {
+  const imoveis = imoveisLocacaoV10();
+  const contratos = state.locContratos;
+  const ativos = contratos.filter(c => c.status === 'Ativo');
+  const status = (i, valor) => (i.locacaoStatus || i.situacao || 'Em captação') === valor;
+  const disponiveis = imoveis.filter(i => status(i, 'Disponível'));
+  const locados = imoveis.filter(i => status(i, 'Locado'));
+  const vencendo = ativos.filter(c => { const dias=locDiasAte(c.dataFim); return dias!==null && dias>=0 && dias<=90; });
+  const semProprietario = imoveis.filter(i => !state.imovelProprietarios.some(v => v.imovelId === i.id));
+  const carteira = ativos.reduce((s,c) => s + parseMoney(c.aluguel), 0);
+  const receita = ativos.reduce((s,c) => s + parseMoney(c.aluguel) * parsePercentual(c.admPct) / 100, 0);
+  const ocupacao = imoveis.length ? Math.round(locados.length / imoveis.length * 100) : 0;
+  cont.innerHTML = `<div class="notice" style="margin-bottom:14px"><b>Base unificada:</b> proprietários são Pessoas vinculadas aos mesmos imóveis exibidos na área principal.</div>
+    <div class="stats-grid">
+      <div class="stat-card verde clickable-card" onclick="setLocSub('imoveis')"><div class="label">Disponíveis</div><div class="value">${disponiveis.length}</div></div>
+      <div class="stat-card"><div class="label">Locados</div><div class="value">${locados.length}</div></div>
+      <div class="stat-card clickable-card" onclick="setLocSub('contratos')"><div class="label">Contratos ativos</div><div class="value">${ativos.length}</div></div>
+      <div class="stat-card ${vencendo.length?'quente':''}"><div class="label">Vencendo em 90 dias</div><div class="value">${vencendo.length}</div></div>
+      <div class="stat-card ${semProprietario.length?'quente':''}" onclick="setLocSub('imoveis')"><div class="label">Sem proprietário vinculado</div><div class="value">${semProprietario.length}</div></div>
+      <div class="stat-card"><div class="label">Taxa de ocupação</div><div class="value">${ocupacao}%</div></div>
+      <div class="stat-card verde"><div class="label">Carteira de aluguéis</div><div class="value" style="font-size:18px">R$ ${fmtMoney(carteira)}</div></div>
+      <div class="stat-card verde"><div class="label">Receita adm./mês</div><div class="value" style="font-size:18px">R$ ${fmtMoney(receita)}</div></div>
+    </div>
+    ${semProprietario.length?`<div class="card" style="border-left:4px solid var(--quente)"><h3>Vínculos pendentes</h3>${semProprietario.map(i=>`<div class="owner-row"><span>🏠 ${escHtml(enderecoImovelV5(i))}</span><button class="btn small" onclick="abrirFormImovelV5('${i.id}')">Vincular proprietário</button></div>`).join('')}</div>`:''}`;
+}
+function renderLocImoveis(cont) {
+  const lista = imoveisLocacaoV10();
+  cont.innerHTML = `<div class="page-header" style="margin-top:0"><div><h2 style="font-size:18px">🏢 Imóveis para locação (${lista.length})</h2><small>Mesma ficha completa exibida no menu Imóveis.</small></div><button class="btn verde" onclick="abrirFormImovelV5(null,null,'locacao')">+ Novo imóvel para locação</button></div>
+    <div class="entity-grid">${lista.map(i=>{const donos=proprietariosImovelV10(i.id);return `<article class="entity-card"><h3>${escHtml(i.codigo||i.tipo||'Imóvel')}</h3><div>${escHtml(enderecoImovelV5(i))}</div><div class="operation-row"><span class="operation-chip rent">${escHtml(i.locacaoStatus||i.situacao||'Em captação')} · R$ ${fmtMoney(parseMoney(i.aluguel))}/mês</span></div><div class="entity-meta">👤 ${donos.length?donos.map(x=>`${escHtml(x.pessoa.nome)} (${fmtNumeroBR(parsePercentual(x.vinculo.percentual),2)}%)`).join(' · '):'<b style="color:var(--quente)">Proprietário não vinculado</b>'}</div><div class="entity-actions"><button class="btn small" onclick="abrirFormImovelV5('${i.id}')">Abrir ficha completa</button></div></article>`}).join('')||'<div class="empty">Nenhum imóvel para locação.</div>'}</div>`;
+}
+function abrirFormImovel(id) { return abrirFormImovelV5(id,null,'locacao'); }
+function renderLocProprietarios(cont) {
+  const pessoas = state.pessoas.filter(p => state.imovelProprietarios.some(v => v.pessoaId === p.id) || (p.papeis||[]).includes('Proprietário'));
+  cont.innerHTML = `<div class="page-header" style="margin-top:0"><div><h2 style="font-size:18px">👤 Proprietários (${pessoas.length})</h2><small>Pessoas conectadas aos imóveis por vínculo de propriedade.</small></div><button class="btn verde" onclick="abrirFormPessoaV5(null,null,'proprietario')">+ Nova pessoa proprietária</button></div>
+    <div class="entity-grid">${pessoas.map(p=>{const imoveis=state.imovelProprietarios.filter(v=>v.pessoaId===p.id).map(v=>({v,i:imovelV5(v.imovelId)})).filter(x=>x.i);return `<article class="entity-card"><h3>${escHtml(p.nome)}</h3><div class="entity-meta">${escHtml(p.doc||'Documento não informado')} · ${escHtml(p.whatsapp||p.telefone||'Sem telefone')}</div><div class="entity-meta">🏠 ${imoveis.length?imoveis.length+' imóvel(is) vinculado(s)':'<b style="color:var(--morno)">Aguardando vínculo com imóvel</b>'}</div>${imoveis.slice(0,3).map(x=>`<div class="entity-meta">• ${escHtml(enderecoImovelV5(x.i))} · ${fmtNumeroBR(parsePercentual(x.v.percentual),2)}%</div>`).join('')}<div class="entity-actions"><button class="btn small" onclick="abrirVisao360PessoaV5('${p.id}')">Abrir pessoa 360°</button><button class="btn secondary small" onclick="abrirFormImovelV5(null,'${p.id}','locacao')">+ Imóvel desta pessoa</button></div></article>`}).join('')||'<div class="empty">Nenhum proprietário vinculado.</div>'}</div>`;
+}
+function abrirFormProprietario(id) {
+  const legado = state.locProprietarios.find(p => p.id === id);
+  return abrirFormPessoaV5(legado?.pessoaId || id || null);
+}
+function renderLocContratos(cont) {
+  const lista = state.locContratos;
+  cont.innerHTML = `<div class="page-header" style="margin-top:0"><div><h2 style="font-size:18px">📄 Contratos (${lista.length})</h2><small>Contratos ligados ao imóvel e às Pessoas da base única.</small></div><button class="btn verde" onclick="abrirFormContratoV5()">+ Novo contrato</button></div><div class="card"><table><thead><tr><th>Imóvel</th><th>Proprietário</th><th>Locatário</th><th>Aluguel</th><th>Período</th><th>Status</th><th></th></tr></thead><tbody>${lista.map(c=>{const i=imovelV5(c.imovelV5Id),pr=pessoaV5(c.proprietarioPessoaId),lo=pessoaV5(c.locatarioPessoaId);return `<tr><td>${escHtml(i?enderecoImovelV5(i):'Vínculo pendente')}</td><td>${escHtml(pr?.nome||'—')}</td><td>${escHtml(lo?.nome||'—')}</td><td>R$ ${fmtMoney(parseMoney(c.aluguel))}</td><td>${fmtDataCurta(c.dataInicio)||'—'} a ${fmtDataCurta(c.dataFim)||'—'}</td><td>${escHtml(c.status||'—')}</td><td><button class="btn small" onclick="abrirFormContratoV5('${c.id}')">Editar</button></td></tr>`}).join('')||'<tr><td colspan="7">Nenhum contrato cadastrado.</td></tr>'}</tbody></table></div>`;
+}
+function abrirFormContrato(id) { return abrirFormContratoV5(id); }
 
 /* ===== COMISSÕES ===== */
 function renderComissoesV5(main){const previsto=state.comissoes.reduce((s,x)=>s+parseMoney(x.valorPrevisto),0),recebido=state.comissoes.reduce((s,x)=>s+parseMoney(x.valorRecebido),0);main.innerHTML=`<div class="page-header"><div><h2>Controle de comissões</h2><small>Previsão, vencimento e recebimento por negócio.</small></div><div class="actions"><button class="btn verde" onclick="abrirFormComissaoV5()">+ Nova comissão</button><button class="btn secondary" onclick="irPaginaV5('calculadora')">Calculadora de honorários</button></div></div><div class="stats-grid"><div class="stat-card"><div class="label">Total previsto</div><div class="value" style="font-size:20px">R$ ${fmtMoney(previsto)}</div></div><div class="stat-card verde"><div class="label">Recebido</div><div class="value" style="font-size:20px">R$ ${fmtMoney(recebido)}</div></div><div class="stat-card quente"><div class="label">A receber</div><div class="value" style="font-size:20px">R$ ${fmtMoney(Math.max(0,previsto-recebido))}</div></div></div><div class="card"><table><thead><tr><th>Descrição</th><th>Tipo</th><th>Imóvel / pessoa</th><th>Previsto</th><th>Recebido</th><th>Vencimento</th><th>Status</th><th></th></tr></thead><tbody>${state.comissoes.map(c=>{const i=imovelV5(c.imovelId),p=pessoaV5(c.pessoaId);return `<tr><td><b>${escHtml(c.descricao||'Comissão')}</b></td><td>${escHtml(c.tipo||'—')}</td><td>${escHtml(i?enderecoImovelV5(i):(p?.nome||'—'))}</td><td>R$ ${fmtMoney(parseMoney(c.valorPrevisto))}</td><td>R$ ${fmtMoney(parseMoney(c.valorRecebido))}</td><td>${fmtDataCurta(c.vencimento)||'—'}</td><td>${escHtml(c.status||'Prevista')}</td><td><button class="btn small" onclick="abrirFormComissaoV5('${c.id}')">Editar</button></td></tr>`}).join('')||'<tr><td colspan="8">Nenhuma comissão cadastrada.</td></tr>'}</tbody></table></div>`;}
@@ -5306,6 +5486,13 @@ function executarAutotestes() {
     return m.clientes.every(c => c.status === 'Proposta / Negociação');
   });
   testar('fechado é a última etapa do pipeline', () => STATUS_LIST.at(-1) === 'Fechado');
+  testar('migração liga proprietário antigo ao imóvel canônico', () => {
+    const m = normalizarState({ schemaVersion:9, clientes:[], tarefas:[],
+      locProprietarios:[{id:'pr1',nome:'João',doc:'529.982.247-25'}],
+      locImoveis:[{id:'li1',endereco:'Rua A, 10',proprietarioId:'pr1',situacao:'Disponível'}] });
+    const pessoa=m.pessoas.find(p=>p.nome==='João'), imovel=m.imoveis.find(i=>i.legacyLocId==='li1');
+    return !!pessoa && !!imovel && m.imovelProprietarios.some(v=>v.pessoaId===pessoa.id&&v.imovelId===imovel.id);
+  });
   testar('score comercial completo chega a 10', () => scoreComercialV8({fitScore:'2',capacidadeScore:'2',timing:'Imediato / até 7 dias',garantiaScore:'2',adesaoProcesso:'Alta'}).total === 10);
   testar('score incompleto não força nota zero', () => scoreComercialV8({fitScore:'2',adesaoProcesso:'Alta'}).total === null);
   testar('baixa adesão nunca vira prioridade A', () => scoreComercialV8({fitScore:'2',capacidadeScore:'2',timing:'Imediato / até 7 dias',garantiaScore:'2',adesaoProcesso:'Baixa'}).prioridade === 'C');
@@ -5333,7 +5520,7 @@ if (footerEl) {
   footerEl.innerHTML = `v${APP_VERSION} · dados locais<br><span style="opacity:0.8;">Desenvolvido por ${APP_AUTOR}</span><span id="storage-status" class="storage-status ok">● Salvo neste dispositivo</span>`;
 }
 
-if (!lerStorageSeguro(STORAGE_KEY)) salvar(state, { silencioso: true });
+if (!lerStorageSeguro(STORAGE_KEY) || SCHEMA_ARMAZENADO_INICIAL < DATA_SCHEMA_VERSION) salvar(state, { silencioso: true });
 render();
 aplicarMascaras();
 aplicarAcessibilidade(document);
