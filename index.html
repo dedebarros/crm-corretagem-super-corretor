@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CRM Imobiliário Local v8 — André Barros</title>
+<title>CRM Imobiliário Local v8.1 — André Barros</title>
 <style>
   :root {
     --azul: #006994;
@@ -710,11 +710,11 @@
   .kanban-col.novo { border-top-color: #607d8b; }
   .kanban-col.atendimento { border-top-color: var(--azul); }
   .kanban-col.visita { border-top-color: var(--morno); }
-  .kanban-col.proposta { border-top-color: #ff9800; }
-  .kanban-col.negociacao { border-top-color: #9c27b0; }
+  .kanban-col.proposta-negociacao { border-top-color: #ff9800; }
   .kanban-col.fechado { border-top-color: var(--verde); background: var(--verde-bg); }
   .kanban-col.perdido { border-top-color: var(--quente); }
   .kanban-col.pausa { border-top-color: #795548; }
+  .kanban-col.reciclagem { border-top-color: #9c27b0; background: #fcf6ff; }
 
   .kanban-col.drag-over {
     background: var(--verde-bg);
@@ -938,7 +938,7 @@
       <button class="nav-btn" data-page="config"><span class="icon">⚙</span><span>Backup</span></button>
     </nav>
     <div class="footer" id="app-footer">
-      v8.0 · dados locais
+      v8.1 · dados locais
     </div>
   </aside>
 
@@ -1065,11 +1065,11 @@
               <option>Novo Lead</option>
               <option>Em Atendimento</option>
               <option>Visita Agendada</option>
-              <option>Proposta</option>
-              <option>Negociação</option>
-              <option>Fechado</option>
+              <option>Proposta / Negociação</option>
               <option>Perdido</option>
               <option>Em Pausa</option>
+              <option>Reciclagem / Follow-up</option>
+              <option>Fechado</option>
             </select>
           </div>
           <div class="form-group full">
@@ -1611,9 +1611,10 @@
 <script>
 /* ===== VERSÃO & CHANGELOG =====
    Incremente APP_VERSION e adicione uma linha no topo de CHANGELOG a cada alteração. */
-const APP_VERSION = '8.0';
+const APP_VERSION = '8.1';
 const APP_AUTOR = 'André Barros';
 const CHANGELOG = [
+  { v: '8.1', desc: 'Pipeline comercial reorganizado: Proposta e Negociação unificadas, nova etapa Reciclagem / Follow-up e Fechado como coluna final.' },
   { v: '8.0', desc: 'Inteligência comercial: adesão ao processo, score 0–10, prioridade A/B/C, fluxo operacional de locação, alerta de documentação em 24h, captação operacional e comissionamento GRI 35/35/30.' },
   { v: '7.0', desc: 'Modo Super Corretor: tela Hoje, Locação em destaque, próxima ação com prazo, radar de follow-up e qualificação operacional rápida.' },
   { v: '6.6', desc: 'Presets de comissão de captação ajustados para 6%, 5% e 4%, mantendo percentual personalizado.' },
@@ -1641,18 +1642,28 @@ const CHANGELOG = [
 const STORAGE_KEY = 'crm_andre_v5';
 const LEGACY_STORAGE_KEYS = ['crm_andre_v4', 'crm_andre_v3', 'crm_andre_v2', 'crm_andre_v1'];
 const BACKUP_STORAGE_KEY = 'crm_andre_v5_backup';
-const DATA_SCHEMA_VERSION = 8;
-const STATUS_LIST = ['Novo Lead','Em Atendimento','Visita Agendada','Proposta','Negociação','Fechado','Perdido','Em Pausa'];
+const DATA_SCHEMA_VERSION = 9;
+const STATUS_LIST = ['Novo Lead','Em Atendimento','Visita Agendada','Proposta / Negociação','Perdido','Em Pausa','Reciclagem / Follow-up','Fechado'];
 const STATUS_CLASS = {
   'Novo Lead': 'novo',
   'Em Atendimento': 'atendimento',
   'Visita Agendada': 'visita',
-  'Proposta': 'proposta',
-  'Negociação': 'negociacao',
+  'Proposta / Negociação': 'proposta-negociacao',
+  'Reciclagem / Follow-up': 'reciclagem',
   'Fechado': 'fechado',
   'Perdido': 'perdido',
   'Em Pausa': 'pausa'
 };
+const STATUS_LEGADO = {
+  'Proposta': 'Proposta / Negociação',
+  'Negociação': 'Proposta / Negociação',
+  'Reciclagem/Follow-up': 'Reciclagem / Follow-up'
+};
+
+function normalizarStatusPipeline(status) {
+  const convertido = STATUS_LEGADO[status] || status;
+  return STATUS_LIST.includes(convertido) ? convertido : 'Novo Lead';
+}
 
 const ADESAO_PROCESSO_V8 = ['', 'Alta', 'Média', 'Baixa'];
 const DOCUMENTACAO_STATUS_V8 = ['', 'Não solicitada', 'Solicitada', 'Parcial', 'Completa', 'Em análise', 'Aprovada', 'Reprovada'];
@@ -1936,7 +1947,7 @@ function normalizarState(raw) {
     nome: String(c.nome || 'Cliente sem nome'),
     historico: Array.isArray(c.historico) ? c.historico : [],
     finalidade: Array.isArray(c.finalidade) ? c.finalidade.filter(x => ['Compra','Venda','Aluguel','Investimento'].includes(x)) : [],
-    status: STATUS_LIST.includes(c.status) ? c.status : 'Novo Lead',
+    status: normalizarStatusPipeline(c.status),
     qualificacao: ['Quente','Morno','Frio',''].includes(c.qualificacao) ? c.qualificacao : '',
     proximaAcao: String(c.proximaAcao || ''),
     proximaAcaoData: String(c.proximaAcaoData || ''),
@@ -5287,6 +5298,14 @@ function executarAutotestes() {
   testar('CPF válido', () => cpfCnpjValido('529.982.247-25'));
   testar('CPF inválido', () => !cpfCnpjValido('111.111.111-11'));
   testar('normalização de esquema', () => normalizarState({ clientes:[], tarefas:[] }).schemaVersion === DATA_SCHEMA_VERSION);
+  testar('migração unifica proposta e negociação', () => {
+    const m = normalizarState({ schemaVersion:8, clientes:[
+      {id:'p1',nome:'Proposta antiga',status:'Proposta'},
+      {id:'n1',nome:'Negociação antiga',status:'Negociação'}
+    ], tarefas:[] });
+    return m.clientes.every(c => c.status === 'Proposta / Negociação');
+  });
+  testar('fechado é a última etapa do pipeline', () => STATUS_LIST.at(-1) === 'Fechado');
   testar('score comercial completo chega a 10', () => scoreComercialV8({fitScore:'2',capacidadeScore:'2',timing:'Imediato / até 7 dias',garantiaScore:'2',adesaoProcesso:'Alta'}).total === 10);
   testar('score incompleto não força nota zero', () => scoreComercialV8({fitScore:'2',adesaoProcesso:'Alta'}).total === null);
   testar('baixa adesão nunca vira prioridade A', () => scoreComercialV8({fitScore:'2',capacidadeScore:'2',timing:'Imediato / até 7 dias',garantiaScore:'2',adesaoProcesso:'Baixa'}).prioridade === 'C');
