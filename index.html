@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CRM Imobiliário Local v10.0 — André Barros</title>
+<title>CRM Imobiliário Local v10.1 — André Barros</title>
 <style>
   :root {
     --azul: #006994;
@@ -708,6 +708,7 @@
     max-height: calc(100vh - 180px);
   }
   .kanban-col.novo { border-top-color: #607d8b; }
+  .kanban-col.necessidade { border-top-color: #5c6bc0; background:#f7f8ff; }
   .kanban-col.atendimento { border-top-color: var(--azul); }
   .kanban-col.visita { border-top-color: var(--morno); }
   .kanban-col.proposta-negociacao { border-top-color: #ff9800; }
@@ -952,7 +953,7 @@
       <button class="nav-btn" data-page="config"><span class="icon">⚙</span><span>Backup</span></button>
     </nav>
     <div class="footer" id="app-footer">
-      v10.0 · dados locais
+      v10.1 · dados locais
     </div>
   </aside>
   <div class="workspace">
@@ -1082,6 +1083,7 @@
             <label>Status</label>
             <select id="c-status">
               <option>Novo Lead</option>
+              <option>Procura / Necessidade</option>
               <option>Em Atendimento</option>
               <option>Visita Agendada</option>
               <option>Proposta / Negociação</option>
@@ -1649,9 +1651,10 @@
 <script>
 /* ===== VERSÃO & CHANGELOG =====
    Incremente APP_VERSION e adicione uma linha no topo de CHANGELOG a cada alteração. */
-const APP_VERSION = '10.0';
+const APP_VERSION = '10.1';
 const APP_AUTOR = 'André Barros';
 const CHANGELOG = [
+  { v: '10.1', desc: 'Nova etapa Procura / Necessidade no Kanban e descrição da procura em destaque na abertura da visão 360°.' },
   { v: '10.0', desc: 'Pesquisa geral em todas as telas, códigos públicos permanentes, biblioteca de scripts e perfil de busca com texto pronto para grupos.' },
   { v: '9.0', desc: 'Base única de Pessoas e Imóveis: proprietário passa a ser um vínculo de propriedade, Locação usa os mesmos cadastros e registros antigos são reconciliados sem exclusão.' },
   { v: '8.1', desc: 'Pipeline comercial reorganizado: Proposta e Negociação unificadas, nova etapa Reciclagem / Follow-up e Fechado como coluna final.' },
@@ -1683,9 +1686,10 @@ const STORAGE_KEY = 'crm_andre_v5';
 const LEGACY_STORAGE_KEYS = ['crm_andre_v4', 'crm_andre_v3', 'crm_andre_v2', 'crm_andre_v1'];
 const BACKUP_STORAGE_KEY = 'crm_andre_v5_backup';
 const DATA_SCHEMA_VERSION = 11;
-const STATUS_LIST = ['Novo Lead','Em Atendimento','Visita Agendada','Proposta / Negociação','Perdido','Em Pausa','Reciclagem / Follow-up','Fechado'];
+const STATUS_LIST = ['Novo Lead','Procura / Necessidade','Em Atendimento','Visita Agendada','Proposta / Negociação','Perdido','Em Pausa','Reciclagem / Follow-up','Fechado'];
 const STATUS_CLASS = {
   'Novo Lead': 'novo',
+  'Procura / Necessidade': 'necessidade',
   'Em Atendimento': 'atendimento',
   'Visita Agendada': 'visita',
   'Proposta / Negociação': 'proposta-negociacao',
@@ -2836,6 +2840,8 @@ function renderKanban(main) {
 
 function renderKanbanCard(c) {
   const qualifClass = c.qualificacao ? c.qualificacao.toLowerCase() : '';
+  const perfil=c.perfilBusca||{};
+  const resumoProcura=[perfil.tipo,perfil.bairros,perfil.valorMax?`até R$ ${perfil.valorMax}`:'',perfil.quartos?`${perfil.quartos}+ quartos`:''].filter(Boolean).join(' · ');
   return `
     <div class="kanban-card ${qualifClass}"
          draggable="true"
@@ -2843,6 +2849,7 @@ function renderKanbanCard(c) {
          ondragend="kanbanDragEnd(event)"
          onclick="abrirDetalhe('${c.id}')">
       <div><span class="codigo-chip">${escHtml(c.codigoCadastro)}</span></div><div class="nome">${escHtml(c.nome)}</div>
+      ${resumoProcura?`<div style="font-size:10px;color:#3949ab;font-weight:700;margin:4px 0">🎯 ${escHtml(resumoProcura)}</div>`:''}
       ${c.proximaAcao ? `<div style="font-size:10px;color:var(--verde-escuro);font-weight:700;margin:3px 0;">⚡ ${escHtml(c.proximaAcao)}${c.proximaAcaoData?' · '+fmtDataCurta(c.proximaAcaoData):''}</div>` : ''}
       <div class="meta">
         ${c.qualificacao ? `<span class="mini-badge ${qualifClass}">${c.qualificacao}</span>` : ''}
@@ -5222,6 +5229,7 @@ function abrirVisao360PessoaV5(id) {
   document.getElementById('btn-excluir-cliente').textContent='Excluir pessoa'; document.getElementById('btn-excluir-cliente').onclick=()=>excluirPessoaV5(id);
   document.getElementById('btn-imprimir-ficha').textContent='Imprimir visão 360°'; document.getElementById('btn-imprimir-ficha').onclick=()=>window.print();
   document.getElementById('detalhe-body').innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">${papeisPessoaV5(p).map(x=>`<span class="badge tipo">${escHtml(x)}</span>`).join('')||'<span class="badge tipo">Sem papel definido</span>'}<a class="btn small" style="margin-left:auto;background:#25D366" href="${whatsappLink(p.whatsapp||'')}" target="_blank" ${p.whatsapp?'':'style="display:none"'}>💬 WhatsApp</a></div>
+    <div class="section-title">🎯 O que o cliente procura ou precisa</div>${perfilHtml||`<div class="notice">A procura ainda não foi cadastrada.${negocios[0]?` <button class="btn secondary small" onclick="abrirModalCliente('${negocios[0].id}')">Cadastrar agora</button>`:''}</div>`}
     <div class="stats-grid"><div class="stat-card"><div class="label">Imóveis</div><div class="value">${imoveis.length}</div></div><div class="stat-card verde"><div class="label">Negócios</div><div class="value">${negocios.length}</div></div><div class="stat-card morno"><div class="label">Perfis de busca</div><div class="value">${perfis.length}</div></div><div class="stat-card frio"><div class="label">Avaliações AVP</div><div class="value">${avaliacoes.length}</div></div></div>
     <div class="tabs"><button class="tab-btn active" data-tab="dados">Dados</button><button class="tab-btn" data-tab="imoveis">Imóveis</button><button class="tab-btn" data-tab="negocios">Negócios</button><button class="tab-btn" data-tab="busca">Busca / AVP</button><button class="tab-btn" data-tab="tarefas">Tarefas (${tarefas.filter(t=>!t.concluida).length})</button><button class="tab-btn" data-tab="historico">Histórico</button></div>
     <div class="tab-content active" data-tab="dados">${info('Nome',escHtml(p.nome))}${info('CPF / CNPJ',escHtml(p.doc||''))}${info('WhatsApp',escHtml(p.whatsapp||''))}${info('Telefone',escHtml(p.telefone||''))}${info('E-mail',escHtml(p.email||''))}${info('Profissão',escHtml(p.profissao||''))}${info('Endereço',escHtml(p.endereco||''))}${p.observacoes?`<div style="margin-top:14px"><b style="color:var(--azul-escuro)">Observações:</b><div style="background:var(--azul-bg);padding:10px;border-radius:6px;margin-top:6px;white-space:pre-wrap">${escHtml(p.observacoes)}</div></div>`:''}</div>
