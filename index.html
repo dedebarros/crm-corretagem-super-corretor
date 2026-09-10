@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CRM Imobiliário Local v9.0 — André Barros</title>
+<title>CRM Imobiliário Local v10.0 — André Barros</title>
 <style>
   :root {
     --azul: #006994;
@@ -858,6 +858,8 @@
     .form-grid, .form-grid.three, .form-grid.four { grid-template-columns: 1fr; }
     .dashboard-grid { grid-template-columns: 1fr; }
     main { padding: 16px 12px; }
+    .global-topbar { padding:10px 12px; }
+    .global-topbar .btn { padding:9px 11px; }
     .page-header { align-items:flex-start; gap:12px; flex-direction:column; }
     .page-header .actions { width:100%; }
     .page-header .actions .btn { flex:1; justify-content:center; }
@@ -897,6 +899,16 @@
   .global-search-v5 input { width:100%; padding:11px 13px; border:1px solid var(--borda); border-radius:7px; font-size:14px; }
   .global-search-results-v5 { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:8px; margin-top:10px; }
   .global-search-result-v5 { display:flex; justify-content:space-between; gap:10px; align-items:center; border:1px solid var(--borda); border-radius:7px; padding:9px 11px; background:var(--azul-bg-claro); }
+  .workspace { flex:1; min-width:0; }
+  .global-topbar { position:sticky; top:0; z-index:80; display:flex; gap:8px; align-items:center; padding:12px 40px; background:rgba(245,249,250,.96); border-bottom:1px solid var(--borda); backdrop-filter:blur(8px); }
+  .global-topbar .search-shell { position:relative; flex:1; max-width:900px; }
+  .global-topbar input { width:100%; padding:11px 14px 11px 40px; border:1px solid var(--borda); border-radius:9px; background:#fff; font-size:14px; box-shadow:var(--sombra); }
+  .global-topbar .search-icon { position:absolute; left:14px; top:10px; pointer-events:none; }
+  .global-top-results { position:absolute; left:0; right:0; top:48px; max-height:65vh; overflow:auto; background:#fff; border:1px solid var(--borda); border-radius:9px; box-shadow:var(--sombra-forte); padding:10px; display:none; }
+  .global-top-results.show { display:block; }
+  .codigo-chip { display:inline-block; padding:2px 7px; border-radius:999px; background:#eef2f4; color:var(--azul-escuro); font-size:10px; font-weight:800; letter-spacing:.35px; white-space:nowrap; }
+  .search-group-title { margin:12px 2px 6px; color:var(--azul-escuro); font-size:12px; text-transform:uppercase; letter-spacing:.4px; }
+  .script-body-preview { white-space:pre-wrap; color:#324f5b; margin:10px 0; padding:10px; border-radius:7px; background:var(--azul-bg-claro); }
   .badge.adesao-alta { background:var(--verde-bg); color:var(--verde-escuro); }
   .badge.adesao-media { background:#fff3e0; color:var(--morno); }
   .badge.adesao-baixa { background:#ffebee; color:var(--quente); }
@@ -911,7 +923,7 @@
   .criteria-v8 { border:1px solid var(--borda); border-radius:7px; padding:9px 10px; background:#fff; }
   .criteria-v8 small { display:block; color:var(--cinza); }
   .criteria-v8 b { color:var(--azul-escuro); }
-  @media (max-width: 700px) { .avp-table { font-size:12px; } .avp-table th, .avp-table td { padding:8px; } }
+  @media (max-width: 700px) { .avp-table { font-size:12px; } .avp-table th, .avp-table td { padding:8px; } .global-topbar { padding:10px 12px; } .global-topbar .btn { padding:9px 11px; } }
 </style>
 </head>
 <body>
@@ -924,12 +936,14 @@
     </div>
     <nav class="nav">
       <button class="nav-btn active" data-page="hoje"><span class="icon">⚡</span><span>Hoje</span></button>
+      <button class="nav-btn" data-page="pesquisa"><span class="icon">🔎</span><span>Pesquisa Geral</span></button>
       <button class="nav-btn" data-page="locacao"><span class="icon">🏠</span><span>Locação</span></button>
       <button class="nav-btn" data-page="clientes"><span class="icon">🎯</span><span>Oportunidades</span></button>
       <button class="nav-btn" data-page="pessoas"><span class="icon">👥</span><span>Pessoas</span></button>
       <button class="nav-btn" data-page="imoveis-v5"><span class="icon">🏢</span><span>Imóveis</span></button>
       <button class="nav-btn" data-page="kanban"><span class="icon">📋</span><span>Pipeline</span></button>
       <button class="nav-btn" data-page="tarefas"><span class="icon">✓</span><span>Follow-up / Tarefas</span></button>
+      <button class="nav-btn" data-page="scripts"><span class="icon">💬</span><span>Scripts</span></button>
       <button class="nav-btn" data-page="dashboard"><span class="icon">📊</span><span>Indicadores</span></button>
       <button class="nav-btn" data-page="contratos-v5"><span class="icon">📄</span><span>Contratos</span></button>
       <button class="nav-btn" data-page="comissoes"><span class="icon">💰</span><span>Comissões</span></button>
@@ -938,11 +952,16 @@
       <button class="nav-btn" data-page="config"><span class="icon">⚙</span><span>Backup</span></button>
     </nav>
     <div class="footer" id="app-footer">
-      v9.0 · dados locais
+      v10.0 · dados locais
     </div>
   </aside>
-
-  <main id="main"></main>
+  <div class="workspace">
+    <div class="global-topbar">
+      <div class="search-shell"><span class="search-icon">🔎</span><label class="sr-only" for="busca-global-top">Pesquisa geral</label><input id="busca-global-top" placeholder="Pesquisar código, número, nome, telefone, CPF, imóvel…" autocomplete="off" oninput="renderBuscaGlobalV10(this.value,'busca-global-top-resultados',true)" onfocus="renderBuscaGlobalV10(this.value,'busca-global-top-resultados',true)"><div id="busca-global-top-resultados" class="global-top-results"></div></div>
+      <button class="btn secondary" onclick="abrirPesquisaGeralV10()">Pesquisa</button>
+    </div>
+    <main id="main"></main>
+  </div>
 </div>
 
 <!-- Modal cliente -->
@@ -1226,6 +1245,25 @@
             <label>Prioridade real do cliente</label>
             <input type="text" id="c-prioridade-real" placeholder="Ex.: mudar perto da escola, reduzir aluguel, ter quintal">
           </div>
+        </div>
+
+        <div class="section-title">🔎 O que esta pessoa procura</div>
+        <div class="form-grid four">
+          <div class="form-group"><label>Tipo de imóvel</label><input id="c-busca-tipo" placeholder="Ex.: casa, apartamento, terreno" oninput="atualizarCompatibilidadeBuscaV10()"></div>
+          <div class="form-group two"><label>Bairros / regiões</label><input id="c-busca-bairros" placeholder="Ex.: Zona Sul, Nova Floresta, Centro" oninput="atualizarCompatibilidadeBuscaV10()"></div>
+          <div class="form-group"><label>Cidade / Estado</label><input id="c-busca-cidade" value="Porto Velho/RO" oninput="atualizarCompatibilidadeBuscaV10()"></div>
+          <div class="form-group"><label>Valor máximo</label><input id="c-busca-valor-max" class="money-field" inputmode="decimal" data-number-kind="currency" oninput="atualizarCompatibilidadeBuscaV10()"></div>
+          <div class="form-group"><label>Quartos mínimos</label><input id="c-busca-quartos" type="number" min="0" step="1" oninput="atualizarCompatibilidadeBuscaV10()"></div>
+          <div class="form-group two"><label>Pagamento / financiamento</label><input id="c-busca-pagamento" placeholder="Ex.: financiado, à vista, aceita FGTS"></div>
+          <div class="form-group full"><label>Características indispensáveis</label><input id="c-busca-indispensaveis" placeholder="Ex.: garagem, quintal, 2 banheiros, perto de escola"></div>
+          <div class="form-group full"><label>Texto pronto para grupos</label><textarea id="c-busca-texto-grupo" rows="5" placeholder="O sistema gera uma descrição, mas você pode editar e manter seu próprio texto."></textarea><div class="actions" style="margin-top:8px"><button type="button" class="btn secondary small" onclick="gerarDescricaoBuscaV10()">Gerar/atualizar texto</button><button type="button" class="btn small" onclick="copiarDescricaoBuscaV10()">Copiar para grupos</button></div></div>
+          <div class="form-group full"><div id="c-busca-compatibilidade" class="notice">Preencha o perfil para conferir os imóveis compatíveis.</div></div>
+        </div>
+
+        <div class="section-title">💬 Script de atendimento</div>
+        <div class="form-grid">
+          <div class="form-group two"><label>Escolher script</label><select id="c-script-atendimento"></select></div>
+          <div class="form-group" style="align-self:end"><button type="button" class="btn secondary" onclick="copiarScriptSelecionadoV10()">Copiar personalizado</button></div>
         </div>
 
         <div class="section-title">🏠 Localização do Imóvel</div>
@@ -1611,9 +1649,10 @@
 <script>
 /* ===== VERSÃO & CHANGELOG =====
    Incremente APP_VERSION e adicione uma linha no topo de CHANGELOG a cada alteração. */
-const APP_VERSION = '9.0';
+const APP_VERSION = '10.0';
 const APP_AUTOR = 'André Barros';
 const CHANGELOG = [
+  { v: '10.0', desc: 'Pesquisa geral em todas as telas, códigos públicos permanentes, biblioteca de scripts e perfil de busca com texto pronto para grupos.' },
   { v: '9.0', desc: 'Base única de Pessoas e Imóveis: proprietário passa a ser um vínculo de propriedade, Locação usa os mesmos cadastros e registros antigos são reconciliados sem exclusão.' },
   { v: '8.1', desc: 'Pipeline comercial reorganizado: Proposta e Negociação unificadas, nova etapa Reciclagem / Follow-up e Fechado como coluna final.' },
   { v: '8.0', desc: 'Inteligência comercial: adesão ao processo, score 0–10, prioridade A/B/C, fluxo operacional de locação, alerta de documentação em 24h, captação operacional e comissionamento GRI 35/35/30.' },
@@ -1643,7 +1682,7 @@ const CHANGELOG = [
 const STORAGE_KEY = 'crm_andre_v5';
 const LEGACY_STORAGE_KEYS = ['crm_andre_v4', 'crm_andre_v3', 'crm_andre_v2', 'crm_andre_v1'];
 const BACKUP_STORAGE_KEY = 'crm_andre_v5_backup';
-const DATA_SCHEMA_VERSION = 10;
+const DATA_SCHEMA_VERSION = 11;
 const STATUS_LIST = ['Novo Lead','Em Atendimento','Visita Agendada','Proposta / Negociação','Perdido','Em Pausa','Reciclagem / Follow-up','Fechado'];
 const STATUS_CLASS = {
   'Novo Lead': 'novo',
@@ -1774,7 +1813,8 @@ function estadoVazio() {
     updatedAt: null,
     clientes: [], tarefas: [], locImoveis: [], locProprietarios: [], locLocatarios: [], locContratos: [],
     pessoas: [], imoveis: [], imovelProprietarios: [], perfisBusca: [], interesses: [], negocios: [], comissoes: [], avaliacoes: [],
-    simulacoesFinanciamento: [], simulacoesInvestimento: [], pendenciasMigracao: []
+    simulacoesFinanciamento: [], simulacoesInvestimento: [], pendenciasMigracao: [], scriptsAtendimento: scriptsPadraoV10(),
+    sequencias: { pessoa:0, oportunidade:0, imovel:0, script:0 }
   };
 }
 
@@ -2019,6 +2059,48 @@ function migrarEstruturaV10(base) {
   });
 }
 
+const CODIGOS_CADASTRO_V10 = {
+  pessoa:{prefixo:'PES',colecao:'pessoas'}, oportunidade:{prefixo:'OP',colecao:'clientes'},
+  imovel:{prefixo:'IMV',colecao:'imoveis'}, script:{prefixo:'SCR',colecao:'scriptsAtendimento'}
+};
+function scriptsPadraoV10() {
+  return [
+    ['Primeiro contato','Primeiro contato','WhatsApp','Novo Lead','Olá, {{nome}}! Aqui é {{corretor}}. Recebi seu contato e quero entender melhor o que você procura para te atender de forma objetiva. Podemos conversar?','primeiro contato, apresentação'],
+    ['Qualificação da procura','Qualificação','WhatsApp','Em Atendimento','{{nome}}, para eu filtrar as melhores opções, me confirme por favor: tipo de imóvel, bairros, faixa de valor, quantidade de quartos e se será à vista ou financiado.','qualificação, perfil de busca'],
+    ['Envio de opções','Envio de imóveis','WhatsApp','Em Atendimento','{{nome}}, selecionei algumas opções alinhadas ao seu perfil. Vou te enviar os imóveis com valores e principais características. Depois me diga qual deles mais chamou sua atenção.','imóveis, opções'],
+    ['Confirmação de visita','Visita','WhatsApp','Visita Agendada','Olá, {{nome}}! Confirmando nossa visita ao imóvel {{imovel}}. Se surgir algum imprevisto, me avise por aqui.','visita, confirmação'],
+    ['Retorno pós-visita','Pós-visita','WhatsApp','Visita Agendada','{{nome}}, o que você achou do imóvel {{imovel}}? Quero entender os pontos positivos e o que não funcionou para ajustar as próximas opções.','pós-visita, feedback'],
+    ['Follow-up objetivo','Follow-up','WhatsApp','Reciclagem / Follow-up','Olá, {{nome}}! Passando para saber se sua busca pelo imóvel continua ativa. Se mudou bairro, valor ou prioridade, me atualize para eu ajustar a procura.','follow-up, retomada'],
+    ['Reciclagem de contato','Reciclagem','WhatsApp','Reciclagem / Follow-up','Olá, {{nome}}! Faz algum tempo desde nosso último contato. Surgiram novas oportunidades e queria confirmar se ainda posso ajudar na sua busca ou negociação.','reciclagem, reativação'],
+    ['Proposta e negociação','Proposta / Negociação','WhatsApp','Proposta / Negociação','{{nome}}, recebi seu posicionamento. Vou organizar os pontos da proposta e conduzir a negociação com clareza. Assim que tiver o retorno, aviso você.','proposta, negociação'],
+    ['Captação de imóvel','Captação','WhatsApp','Em Atendimento','Olá, {{nome}}! Para iniciarmos a captação do imóvel {{imovel}}, preciso confirmar documentação, valor pretendido, condições da negociação e autorização de divulgação.','proprietário, captação'],
+    ['Fechamento e agradecimento','Fechamento','WhatsApp','Fechado','{{nome}}, negócio concluído! Obrigado pela confiança no meu trabalho. Continuarei disponível para acompanhar os próximos passos e o pós-atendimento.','fechamento, pós-venda']
+  ].map((s,i)=>({id:`script_padrao_${i+1}`,titulo:s[0],categoria:s[1],canal:s[2],etapa:s[3],texto:s[4],tags:s[5],ativo:true,criadoEm:hoje(),atualizadoEm:hoje()}));
+}
+function garantirCodigosCadastroV10(base) {
+  base.sequencias = normalizarRegistro(base.sequencias);
+  Object.entries(CODIGOS_CADASTRO_V10).forEach(([tipo,def]) => {
+    const lista = Array.isArray(base[def.colecao]) ? base[def.colecao] : [];
+    const regex = new RegExp(`^${def.prefixo}-(\\d{6})$`);
+    const usados = new Set(); let maior = Math.max(0, Number(base.sequencias[tipo]) || 0);
+    lista.forEach(reg => { const m=String(reg.codigoCadastro||'').match(regex); if(m&&!usados.has(reg.codigoCadastro)){usados.add(reg.codigoCadastro);maior=Math.max(maior,Number(m[1]));} else reg.codigoCadastro=''; });
+    lista.forEach(reg => { if(reg.codigoCadastro)return; do { maior += 1; reg.codigoCadastro=`${def.prefixo}-${String(maior).padStart(6,'0')}`; } while(usados.has(reg.codigoCadastro)); usados.add(reg.codigoCadastro); });
+    base.sequencias[tipo] = maior;
+  });
+}
+function migrarEstruturaV11(base) {
+  if (!base.scriptsAtendimento.length) base.scriptsAtendimento = scriptsPadraoV10();
+  base.clientes.forEach(c => {
+    const atual=normalizarRegistro(c.perfilBusca), perfil=base.perfisBusca.find(p=>p.leadId===c.id), legado=normalizarRegistro(c.imovel);
+    c.perfilBusca = {
+      tipo:String(atual.tipo||perfil?.tipo||legado.tipo||''), bairros:String(atual.bairros||perfil?.bairros||legado.bairro||''),
+      cidade:String(atual.cidade||perfil?.cidade||legado.cidade||''), valorMax:String(atual.valorMax||perfil?.valorMax||legado.valorPedido||''),
+      quartos:String(atual.quartos||perfil?.quartos||legado.dormitorios||''), pagamento:String(atual.pagamento||''),
+      indispensaveis:String(atual.indispensaveis||''), textoGrupo:String(atual.textoGrupo||perfil?.textoGrupo||perfil?.observacoes||legado.obs||'')
+    };
+  });
+}
+
 function normalizarState(raw) {
   const base = estadoVazio();
   const src = normalizarRegistro(sanitizarValorPersistido(raw));
@@ -2027,6 +2109,7 @@ function normalizarState(raw) {
   });
   base.revision = Number.isFinite(Number(src.revision)) ? Number(src.revision) : 0;
   base.updatedAt = typeof src.updatedAt === 'string' ? src.updatedAt : null;
+  base.sequencias = { ...base.sequencias, ...normalizarRegistro(src.sequencias) };
   base.clientes = base.clientes.map(c => ({
     ...c,
     id: idSeguro(c.id),
@@ -2051,6 +2134,7 @@ function normalizarState(raw) {
     rendaMensal: String(c.rendaMensal || ''),
     custoLocacao: String(c.custoLocacao || ''),
     propostaEnviadaEm: String(c.propostaEnviadaEm || ''),
+    perfilBusca: normalizarRegistro(c.perfilBusca),
     imovel: normalizarRegistro(c.imovel),
     negocio: normalizarRegistro(c.negocio)
   }));
@@ -2065,13 +2149,16 @@ function normalizarState(raw) {
     base[k] = base[k].map(x => ({ ...x, id: idSeguro(x.id) }));
   });
   base.pessoas = base.pessoas.map(p => ({ ...p, id:idSeguro(p.id), nome:String(p.nome || 'Pessoa sem nome'), papeis:Array.isArray(p.papeis) ? [...new Set(p.papeis)] : [] }));
-  ['imoveis','imovelProprietarios','perfisBusca','interesses','negocios','comissoes','avaliacoes','simulacoesFinanciamento','simulacoesInvestimento','pendenciasMigracao'].forEach(k => {
+  ['imoveis','imovelProprietarios','perfisBusca','interesses','negocios','comissoes','avaliacoes','simulacoesFinanciamento','simulacoesInvestimento','pendenciasMigracao','scriptsAtendimento'].forEach(k => {
     base[k] = base[k].map(x => ({ ...x, id:idSeguro(x.id) }));
   });
+  base.scriptsAtendimento = base.scriptsAtendimento.map(s => ({ ...s, titulo:String(s.titulo||'Script sem título'), categoria:String(s.categoria||'Geral'), canal:String(s.canal||'WhatsApp'), etapa:String(s.etapa||''), tags:String(s.tags||''), texto:String(s.texto||''), ativo:s.ativo !== false }));
   const schemaOrigem = Number(src.schemaVersion || 0);
   if (schemaOrigem < 5) migrarEstruturaV5(base, src);
   if (schemaOrigem < 8) migrarEstruturaV8(base);
   if (schemaOrigem < 10) migrarEstruturaV10(base);
+  if (schemaOrigem < 11) migrarEstruturaV11(base);
+  garantirCodigosCadastroV10(base);
   const idsClientes = new Set(base.clientes.map(x => x.id));
   const idsProps = new Set(base.locProprietarios.map(x => x.id));
   const idsLocs = new Set(base.locLocatarios.map(x => x.id));
@@ -2133,7 +2220,7 @@ function validarState(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('A raiz do backup deve ser um objeto.');
   if (!Array.isArray(raw.clientes) || !Array.isArray(raw.tarefas)) throw new Error('O backup não contém listas válidas de clientes e tarefas.');
   const ids = new Set();
-  ['clientes','tarefas','locImoveis','locProprietarios','locLocatarios','locContratos','pessoas','imoveis','imovelProprietarios','perfisBusca','interesses','negocios','comissoes','avaliacoes','simulacoesFinanciamento','simulacoesInvestimento','pendenciasMigracao'].forEach(k => {
+  ['clientes','tarefas','locImoveis','locProprietarios','locLocatarios','locContratos','pessoas','imoveis','imovelProprietarios','perfisBusca','interesses','negocios','comissoes','avaliacoes','simulacoesFinanciamento','simulacoesInvestimento','pendenciasMigracao','scriptsAtendimento'].forEach(k => {
     const lista = raw[k] == null ? [] : raw[k];
     if (!Array.isArray(lista)) throw new Error(`A coleção ${k} é inválida.`);
     lista.forEach(item => {
@@ -2408,6 +2495,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 function render() {
   const main = document.getElementById('main');
   if (currentPage === 'hoje') renderHojeV7(main);
+  else if (currentPage === 'pesquisa') renderPesquisaGeralV10(main);
   else if (currentPage === 'dashboard') renderDashboard(main);
   else if (currentPage === 'clientes') renderClientes(main);
   else if (currentPage === 'pessoas') renderPessoasV5(main);
@@ -2416,6 +2504,7 @@ function render() {
   else if (currentPage === 'contratos-v5') renderContratosV5(main);
   else if (currentPage === 'kanban') renderKanban(main);
   else if (currentPage === 'tarefas') renderTarefas(main);
+  else if (currentPage === 'scripts') renderScriptsAtendimentoV10(main);
   else if (currentPage === 'calculadora') renderCalculadora(main);
   else if (currentPage === 'locacao') renderLocacao(main);
   else if (currentPage === 'comissoes') renderComissoesV5(main);
@@ -2644,7 +2733,7 @@ function renderClientes(main) {
 
   let lista = state.clientes;
   if (filtroTexto) lista = lista.filter(c =>
-    c.nome.toLowerCase().includes(filtroTexto) ||
+    (c.codigoCadastro||'').toLowerCase().includes(filtroTexto) || c.nome.toLowerCase().includes(filtroTexto) ||
     (c.whatsapp || '').includes(filtroTexto) ||
     (c.imovel?.bairro || '').toLowerCase().includes(filtroTexto) ||
     (c.imovel?.logradouro || '').toLowerCase().includes(filtroTexto) ||
@@ -2683,10 +2772,10 @@ function renderClientes(main) {
 
     ${lista.length === 0 ? `<div class="card empty"><div class="icon">📭</div><h3>Nenhum cliente encontrado</h3></div>` : `
       <table>
-        <thead><tr><th>Nome</th><th>Finalidade</th><th>Adesão</th><th>Score</th><th>Status / etapa</th><th>WhatsApp</th><th>Próxima ação</th><th>Última interação</th></tr></thead>
+        <thead><tr><th>Código / Nome</th><th>Finalidade</th><th>Adesão</th><th>Score</th><th>Status / etapa</th><th>WhatsApp</th><th>Próxima ação</th><th>Última interação</th></tr></thead>
         <tbody>${lista.map(c => `
           <tr onclick="abrirDashboardLead('${c.id}')">
-            <td><b>${escHtml(c.nome)}</b>${c.adesaoMotivo?`<br><small style="color:var(--cinza)">${escHtml(c.adesaoMotivo)}</small>`:''}</td>
+            <td><span class="codigo-chip">${escHtml(c.codigoCadastro)}</span><br><b>${escHtml(c.nome)}</b>${c.adesaoMotivo?`<br><small style="color:var(--cinza)">${escHtml(c.adesaoMotivo)}</small>`:''}</td>
             <td>${(c.finalidade || []).map(f => `<span class="badge tipo">${f}</span>`).join('') || '—'}</td>
             <td>${htmlAdesaoV8(c.adesaoProcesso)}</td>
             <td>${htmlScoreV8(c)}</td>
@@ -2753,7 +2842,7 @@ function renderKanbanCard(c) {
          ondragstart="kanbanDragStart(event, '${c.id}')"
          ondragend="kanbanDragEnd(event)"
          onclick="abrirDetalhe('${c.id}')">
-      <div class="nome">${c.nome}</div>
+      <div><span class="codigo-chip">${escHtml(c.codigoCadastro)}</span></div><div class="nome">${escHtml(c.nome)}</div>
       ${c.proximaAcao ? `<div style="font-size:10px;color:var(--verde-escuro);font-weight:700;margin:3px 0;">⚡ ${escHtml(c.proximaAcao)}${c.proximaAcaoData?' · '+fmtDataCurta(c.proximaAcaoData):''}</div>` : ''}
       <div class="meta">
         ${c.qualificacao ? `<span class="mini-badge ${qualifClass}">${c.qualificacao}</span>` : ''}
@@ -3238,9 +3327,10 @@ function escAttr(s) {
 const escHtml = escAttr;
 
 const EVENTOS_INLINE_PERMITIDOS = {
-  onclick: /^(?:event\.stopPropagation\(\);\s*)?(?:abrirModalCliente|abrirModalTarefa|abrirDetalhe|abrirDashboardLead|abrirInteracao|abrirClienteDoModalLoc|fecharModal|salvarCliente|salvarTarefa|salvarInteracao|setCalcModo|stepCalc|stepAvp|setPercCalc|setDivisaoCalc|novaTarefaVinculo|setLocSub|abrirFormImovel|abrirFormProprietario|abrirFormLocatario|abrirFormContrato|locExcluir|irParaLoc|toggleTarefa|excluirTarefa|kanbanMudarStatus|window\.print|importarDados|exportarDados|salvarBackupEmPastaV5|apagarTudo|restaurarBackupAutomatico|abrirFormPessoaV5|abrirVisao360PessoaV5|salvarPessoaV5|excluirPessoaV5|abrirFormImovelV5|salvarImovelV5|excluirImovelV5|removerProprietarioV5|abrirFormContratoV5|salvarContratoV5|excluirContratoV5|abrirFormComissaoV5|salvarComissaoV5|excluirComissaoV5|setSimuladorV5|salvarFinanciamentoV5|salvarInvestimentoV5|resolverPendenciaMigracaoV5|irPaginaV5|abrirLeadPessoaV5|abrirFormAvaliacaoV5|salvarAvaliacaoV5|excluirAvaliacaoV5|imprimirAvaliacaoV5|calcularAvaliacaoV5)\([^;]*\);?$/,
+  onclick: /^(?:event\.stopPropagation\(\);\s*)?(?:abrirModalCliente|abrirModalTarefa|abrirDetalhe|abrirDashboardLead|abrirInteracao|abrirClienteDoModalLoc|fecharModal|salvarCliente|salvarTarefa|salvarInteracao|setCalcModo|stepCalc|stepAvp|setPercCalc|setDivisaoCalc|novaTarefaVinculo|setLocSub|abrirFormImovel|abrirFormProprietario|abrirFormLocatario|abrirFormContrato|locExcluir|irParaLoc|toggleTarefa|excluirTarefa|kanbanMudarStatus|window\.print|importarDados|exportarDados|salvarBackupEmPastaV5|apagarTudo|restaurarBackupAutomatico|abrirFormPessoaV5|abrirVisao360PessoaV5|salvarPessoaV5|excluirPessoaV5|abrirFormImovelV5|salvarImovelV5|excluirImovelV5|removerProprietarioV5|abrirFormContratoV5|salvarContratoV5|excluirContratoV5|abrirFormComissaoV5|salvarComissaoV5|excluirComissaoV5|setSimuladorV5|salvarFinanciamentoV5|salvarInvestimentoV5|resolverPendenciaMigracaoV5|irPaginaV5|abrirLeadPessoaV5|abrirFormAvaliacaoV5|salvarAvaliacaoV5|excluirAvaliacaoV5|imprimirAvaliacaoV5|calcularAvaliacaoV5|abrirPesquisaGeralV10|abrirResultadoBuscaV10|abrirFormScriptAtendimentoV10|salvarScriptAtendimentoV10|arquivarScriptAtendimentoV10|copiarTextoV10|usarScriptV10|copiarScriptSelecionadoV10|gerarDescricaoBuscaV10|copiarDescricaoBuscaV10|copiarPerfilBuscaV10)\([^;]*\);?$/,
   onchange: /^(?:toggleTarefa|render|atualizarFiltroClientes|aplicarFaixaCalc|aplicarModoDivisao|toggleLocParticipantes|locContratoPrefill|atualizarProprietariosContratoV10|toggleCampoConjuge|kanbanMudarStatus|renderPessoasV5|renderImoveisV5|calcularFinanciamentoV5|calcularInvestimentoV5|calcularComissaoV5|toggleOperacaoV5|calcularAvaliacaoV5)\([^;]*\);?$/,
-  oninput: /^(?:render|atualizarFiltroClientes|renderBuscaGlobalV5|calcCustomMarcar|calcularHonorarios|calcularLocComissao|renderPessoasV5|renderImoveisV5|calcularFinanciamentoV5|calcularInvestimentoV5|calcularComissaoV5|calcularAvaliacaoV5)\([^;]*\);?$/,
+  oninput: /^(?:render|atualizarFiltroClientes|renderBuscaGlobalV5|renderBuscaGlobalV10|renderScriptsAtendimentoV10|atualizarCompatibilidadeBuscaV10|calcCustomMarcar|calcularHonorarios|calcularLocComissao|renderPessoasV5|renderImoveisV5|calcularFinanciamentoV5|calcularInvestimentoV5|calcularComissaoV5|calcularAvaliacaoV5)\([^;]*\);?$/,
+  onfocus: /^(?:renderBuscaGlobalV10)\([^;]*\);?$/,
   ondragstart: /^kanbanDragStart\([^;]*\);?$/,
   ondragover: /^kanbanDragOver\([^;]*\);?$/,
   ondragleave: /^kanbanDragLeave\([^;]*\);?$/,
@@ -3888,6 +3978,32 @@ function toggleCampoConjuge() {
   });
 }
 
+function perfilBuscaFormularioV10() {
+  return { tipo:document.getElementById('c-busca-tipo')?.value.trim()||'', bairros:document.getElementById('c-busca-bairros')?.value.trim()||'', cidade:document.getElementById('c-busca-cidade')?.value.trim()||'', valorMax:document.getElementById('c-busca-valor-max')?.value.trim()||'', quartos:document.getElementById('c-busca-quartos')?.value||'', pagamento:document.getElementById('c-busca-pagamento')?.value||'', indispensaveis:document.getElementById('c-busca-indispensaveis')?.value.trim()||'', textoGrupo:document.getElementById('c-busca-texto-grupo')?.value.trim()||'' };
+}
+function gerarTextoBuscaGrupoV10(perfil,cliente={}) {
+  const fins=(cliente.finalidade||[]).filter(x=>['Compra','Aluguel','Investimento'].includes(x));
+  const operacao=fins.includes('Aluguel')&&!fins.includes('Compra')?'para locação':fins.includes('Investimento')&&!fins.includes('Compra')?'para investimento':'para compra';
+  const partes=[`Pessoal, procuro ${perfil.tipo||'imóvel'} ${operacao}`];
+  if(perfil.bairros)partes.push(`nos bairros ${perfil.bairros}`); else if(perfil.cidade)partes.push(`em ${perfil.cidade}`);
+  if(perfil.quartos)partes.push(`com no mínimo ${perfil.quartos} quarto(s)`);
+  if(parseMoney(perfil.valorMax))partes.push(`até R$ ${fmtMoney(parseMoney(perfil.valorMax))}`);
+  if(perfil.pagamento)partes.push(`pagamento: ${perfil.pagamento.toLowerCase()}`);
+  if(perfil.indispensaveis)partes.push(`indispensável: ${perfil.indispensaveis}`);
+  return `${partes.join(', ')}. Se alguém tiver uma opção compatível, por favor me envie localização, valor, fotos e condições. Código da procura: ${cliente.codigoCadastro||'a gerar'}.`;
+}
+function gerarDescricaoBuscaV10() { const campo=document.getElementById('c-busca-texto-grupo');if(!campo)return;const c=state.clientes.find(x=>x.id===document.getElementById('cliente-id')?.value)||{finalidade:Array.from(document.querySelectorAll('.c-finalidade:checked')).map(x=>x.value)};campo.value=gerarTextoBuscaGrupoV10(perfilBuscaFormularioV10(),c);atualizarCompatibilidadeBuscaV10();toast('Descrição para grupos gerada.'); }
+function copiarDescricaoBuscaV10() { const campo=document.getElementById('c-busca-texto-grupo');if(!campo?.value.trim())gerarDescricaoBuscaV10();copiarTextoV10(campo?.value||'','Descrição copiada.'); }
+function copiarPerfilBuscaV10(leadId) { const c=state.clientes.find(x=>x.id===leadId),p=c?.perfilBusca||state.perfisBusca.find(x=>x.leadId===leadId)||{};copiarTextoV10(p.textoGrupo||gerarTextoBuscaGrupoV10(p,c||{}),'Descrição da procura copiada.'); }
+function imoveisCompativeisV10(perfil,finalidades=[]) {
+  const bairros=normalizarBuscaV10(perfil.bairros).split(/[,;/]+/).map(x=>x.trim()).filter(Boolean), tipo=normalizarBuscaV10(perfil.tipo), cidade=normalizarBuscaV10(perfil.cidade), max=parseMoney(perfil.valorMax), quartos=Number(perfil.quartos)||0;
+  return state.imoveis.filter(i=>{const querLoc=finalidades.includes('Aluguel')&&!finalidades.includes('Compra'), ativo=querLoc?i.locacaoAtiva:i.vendaAtiva, preco=parseMoney(querLoc?i.aluguel:i.valorVenda);return ativo&&(!tipo||normalizarBuscaV10(i.tipo).includes(tipo))&&(!cidade||normalizarBuscaV10(i.cidade).includes(cidade))&&(!bairros.length||bairros.some(b=>normalizarBuscaV10(i.bairro).includes(b)))&&(!max||!preco||preco<=max)&&(!quartos||Number(i.quartos||0)>=quartos);});
+}
+function atualizarCompatibilidadeBuscaV10() { const el=document.getElementById('c-busca-compatibilidade');if(!el)return;const fins=Array.from(document.querySelectorAll('.c-finalidade:checked')).map(x=>x.value), lista=imoveisCompativeisV10(perfilBuscaFormularioV10(),fins);el.textContent=lista.length?`${lista.length} imóvel(is) da base parecem compatíveis com esta procura.`:'Nenhum imóvel compatível na base agora. Use a descrição pronta para consultar seus grupos.'; }
+function popularSelectScriptsAtendimentoV10(cliente={}) { const el=document.getElementById('c-script-atendimento');if(!el)return;const lista=state.scriptsAtendimento.filter(s=>s.ativo!==false).sort((a,b)=>(a.etapa===cliente.status?-1:0)-(b.etapa===cliente.status?-1:0)||a.titulo.localeCompare(b.titulo));el.innerHTML='<option value="">— selecione um script —</option>'+lista.map(s=>`<option value="${s.id}">${escHtml(s.codigoCadastro)} · ${escHtml(s.titulo)}${s.etapa?' · '+escHtml(s.etapa):''}</option>`).join(''); }
+function personalizarTextoScriptV10(script,cliente={}) { const im=imovelV5(cliente.imovelId);return String(script?.texto||'').replaceAll('{{nome}}',cliente.nome||'cliente').replaceAll('{{corretor}}',APP_AUTOR).replaceAll('{{imovel}}',im?enderecoImovelV5(im):(cliente.imovel?.logradouro||'imóvel')).replaceAll('{{codigo}}',cliente.codigoCadastro||''); }
+function copiarScriptSelecionadoV10() { const id=document.getElementById('c-script-atendimento')?.value,script=state.scriptsAtendimento.find(s=>s.id===id),cliente=state.clientes.find(c=>c.id===document.getElementById('cliente-id')?.value)||{nome:document.getElementById('c-nome')?.value||'',finalidade:[]};if(!script)return toast('Selecione um script.');copiarTextoV10(personalizarTextoScriptV10(script,cliente),'Script personalizado copiado.');if(cliente.id){cliente.historico=cliente.historico||[];cliente.historico.push({data:hoje(),texto:`Script usado: ${script.titulo}`,auto:true});salvar(state,{silencioso:true});} }
+
 function abrirModalCliente(id = null) {
   document.getElementById('form-cliente').reset();
   delete document.getElementById('form-cliente').dataset.pessoaId;
@@ -3896,11 +4012,13 @@ function abrirModalCliente(id = null) {
   document.querySelectorAll('#radio-qualificacao label').forEach(l => l.classList.remove('selected'));
   toggleCampoConjuge();
   document.getElementById('c-data-cadastro').value = hojeStr();
+  ['c-busca-tipo','c-busca-bairros','c-busca-cidade','c-busca-valor-max','c-busca-quartos','c-busca-pagamento','c-busca-indispensaveis','c-busca-texto-grupo'].forEach(campo=>{const el=document.getElementById(campo);if(el)el.value='';});
+  document.getElementById('c-busca-cidade').value='Porto Velho/RO';
 
   if (id) {
     const c = state.clientes.find(x => x.id === id);
     if (!c) return;
-    document.getElementById('modal-cliente-titulo').textContent = 'Editar Cliente';
+    document.getElementById('modal-cliente-titulo').textContent = `${c.codigoCadastro} · Editar oportunidade`;
     document.getElementById('cliente-id').value = c.id;
     document.getElementById('c-nome').value = c.nome || '';
     document.getElementById('c-data-cadastro').value = (c.dataCadastro || (c.criadoEm ? c.criadoEm.slice(0,10) : hojeStr()));
@@ -3936,6 +4054,11 @@ function abrirModalCliente(id = null) {
     document.getElementById('c-custo-locacao').value = c.custoLocacao || '';
     document.getElementById('c-proposta-enviada-em').value = c.propostaEnviadaEm || '';
     document.getElementById('c-obs').value = c.obs || '';
+    const pb=c.perfilBusca||{};
+    document.getElementById('c-busca-tipo').value=pb.tipo||''; document.getElementById('c-busca-bairros').value=pb.bairros||'';
+    document.getElementById('c-busca-cidade').value=pb.cidade||''; document.getElementById('c-busca-valor-max').value=pb.valorMax||'';
+    document.getElementById('c-busca-quartos').value=pb.quartos||''; document.getElementById('c-busca-pagamento').value=pb.pagamento||'';
+    document.getElementById('c-busca-indispensaveis').value=pb.indispensaveis||''; document.getElementById('c-busca-texto-grupo').value=pb.textoGrupo||'';
     toggleCampoConjuge();
 
     document.querySelectorAll('.c-finalidade').forEach(cb => {
@@ -4005,8 +4128,9 @@ function abrirModalCliente(id = null) {
     document.getElementById('n-status-comissao').value = neg.statusComissao || '';
     document.getElementById('n-obs').value = neg.obs || '';
   }
+  popularSelectScriptsAtendimentoV10(id?state.clientes.find(x=>x.id===id):{});
   abrirModal('modal-cliente');
-  setTimeout(()=>{ aplicarMascaras(); atualizarPreviewScoreComercial(); }, 50);
+  setTimeout(()=>{ aplicarMascaras(); atualizarPreviewScoreComercial(); atualizarCompatibilidadeBuscaV10(); }, 50);
 }
 
 document.querySelectorAll('#radio-qualificacao label').forEach(l => {
@@ -4060,10 +4184,12 @@ function sincronizarClienteV5(c) {
   }
   const querPerfil = fins.includes('Compra') || fins.includes('Investimento') || (fins.includes('Aluguel') && ehInteressado);
   if (querPerfil) {
+    const perfil = c.perfilBusca || {};
     let pb = state.perfisBusca.find(x => x.leadId === c.id);
     if (!pb) { pb = { id:uid(), leadId:c.id, pessoaId:p.id }; state.perfisBusca.push(pb); }
     Object.assign(pb, { pessoaId:p.id, finalidades:[...fins.filter(x => ['Compra','Investimento'].includes(x)), ...(fins.includes('Aluguel') && ehInteressado ? ['Aluguel'] : [])],
-      tipo:im.tipo, bairros:im.bairro, cidade:im.cidade, valorMax:im.valorPedido, quartos:im.dormitorios, observacoes:im.obs });
+      tipo:perfil.tipo||im.tipo, bairros:perfil.bairros||im.bairro, cidade:perfil.cidade||im.cidade, valorMax:perfil.valorMax||im.valorPedido, quartos:perfil.quartos||im.dormitorios,
+      pagamento:perfil.pagamento||'', indispensaveis:perfil.indispensaveis||'', textoGrupo:perfil.textoGrupo||'', observacoes:perfil.indispensaveis||im.obs });
   }
   if (fins.includes('Aluguel') && ehInteressado) {
     let lo = state.locLocatarios.find(x => x.clienteId === c.id) || state.locLocatarios.find(x => x.pessoaId === p.id && !x.clienteId);
@@ -4104,6 +4230,7 @@ function salvarCliente() {
   const finalidade = Array.from(document.querySelectorAll('.c-finalidade:checked')).map(cb => cb.value);
   const qualifRadio = document.querySelector('#radio-qualificacao input:checked');
   const qualificacao = qualifRadio ? qualifRadio.value : '';
+  const perfilBusca = perfilBuscaFormularioV10();
 
   const docs = {};
   document.querySelectorAll('.doc-check').forEach(cb => {
@@ -4149,6 +4276,7 @@ function salvarCliente() {
     custoLocacao: document.getElementById('c-custo-locacao').value.trim(),
     propostaEnviadaEm: document.getElementById('c-proposta-enviada-em').value,
     obs: document.getElementById('c-obs').value.trim(),
+    perfilBusca,
     imovel: {
       logradouro: document.getElementById('i-logradouro').value.trim(),
       numero: document.getElementById('i-numero').value.trim(),
@@ -4221,6 +4349,8 @@ function salvarCliente() {
     state.clientes.push(cliente);
   }
   const clienteSalvo = id ? state.clientes.find(c => c.id === id) : cliente;
+  garantirCodigosCadastroV10(state);
+  if (!clienteSalvo.perfilBusca.textoGrupo && Object.values(clienteSalvo.perfilBusca).some(Boolean)) clienteSalvo.perfilBusca.textoGrupo=gerarTextoBuscaGrupoV10(clienteSalvo.perfilBusca,clienteSalvo);
   sincronizarClienteV5(clienteSalvo);
   if (!salvar(state)) return;
   fecharModal('modal-cliente');
@@ -4985,13 +5115,61 @@ function abrirDashboardLead(id) {
   abrirDetalhe(id);
 }
 function renderBuscaGlobalV5(valor) {
-  const el = document.getElementById('busca-global-result'); if (!el) return;
-  const q = String(valor || '').trim().toLowerCase(); if (q.length < 2) return setSafeHTML(el, '');
-  const pessoas = state.pessoas.filter(p => [p.nome,p.doc,p.whatsapp,p.telefone,p.email,...papeisPessoaV5(p)].join(' ').toLowerCase().includes(q)).slice(0,6);
-  const imoveis = state.imoveis.filter(i => [i.codigo,enderecoImovelV5(i),i.tipo,i.cidade].join(' ').toLowerCase().includes(q)).slice(0,6);
-  const html = [...pessoas.map(p => `<div class="global-search-result-v5"><span>👤 <b>${escHtml(p.nome)}</b><small class="entity-meta">Pessoa · ${escHtml(papeisPessoaV5(p).join(', ') || 'sem papel')}</small></span><button class="btn small" onclick="abrirVisao360PessoaV5('${p.id}')">Abrir 360°</button></div>`), ...imoveis.map(i => `<div class="global-search-result-v5"><span>🏠 <b>${escHtml(i.codigo || i.tipo || 'Imóvel')}</b><small class="entity-meta">${escHtml(enderecoImovelV5(i))}</small></span><button class="btn small" onclick="abrirFormImovelV5('${i.id}')">Abrir 360°</button></div>`)].join('');
-  setSafeHTML(el, html || '<div class="entity-meta">Nenhum resultado encontrado.</div>');
+  renderBuscaGlobalV10(valor, 'busca-global-result', false);
 }
+function normalizarBuscaV10(valor) { return String(valor||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
+function itensBuscaGlobalV10(valor) {
+  const q=normalizarBuscaV10(valor), digitos=String(valor||'').replace(/\D/g,'');
+  if(q.length<2 && digitos.length<2)return [];
+  const combina=(valores)=>{const texto=normalizarBuscaV10(valores.filter(Boolean).join(' '));const nums=valores.join(' ').replace(/\D/g,'');return texto.includes(q)||(digitos.length>=2&&nums.includes(digitos));};
+  const itens=[];
+  state.pessoas.forEach(p=>{if(combina([p.codigoCadastro,p.nome,p.doc,p.whatsapp,p.telefone,p.email,...papeisPessoaV5(p)]))itens.push({grupo:'Pessoas',tipo:'pessoa',id:p.id,codigo:p.codigoCadastro,titulo:p.nome,sub:[papeisPessoaV5(p).join(', '),p.whatsapp||p.telefone].filter(Boolean).join(' · ')});});
+  state.clientes.forEach(c=>{const p=pessoaV5(c.pessoaId),pb=c.perfilBusca||{};if(combina([c.codigoCadastro,c.nome,c.whatsapp,c.telefone,c.doc,c.status,c.obs,p?.codigoCadastro,pb.tipo,pb.bairros,pb.cidade,pb.valorMax,pb.textoGrupo]))itens.push({grupo:'Oportunidades',tipo:'oportunidade',id:c.id,codigo:c.codigoCadastro,titulo:c.nome,sub:[c.status,(c.finalidade||[]).join(', '),p?.codigoCadastro].filter(Boolean).join(' · ')});});
+  state.imoveis.forEach(i=>{const donos=state.imovelProprietarios.filter(v=>v.imovelId===i.id).map(v=>pessoaV5(v.pessoaId)?.nome);if(combina([i.codigoCadastro,i.codigo,enderecoImovelV5(i),i.tipo,i.matriculaNum,...donos]))itens.push({grupo:'Imóveis',tipo:'imovel',id:i.id,codigo:i.codigoCadastro,titulo:i.codigo||i.tipo||'Imóvel',sub:enderecoImovelV5(i)});});
+  state.locContratos.forEach(c=>{const i=imovelV5(c.imovelV5Id),loc=pessoaV5(c.locatarioPessoaId),prop=pessoaV5(c.proprietarioPessoaId);if(combina([c.numero,c.status,i?.codigoCadastro,enderecoImovelV5(i),loc?.nome,prop?.nome]))itens.push({grupo:'Contratos',tipo:'contrato',id:c.id,codigo:c.numero||'Contrato',titulo:enderecoImovelV5(i),sub:[loc?.nome,c.status].filter(Boolean).join(' · ')});});
+  state.scriptsAtendimento.filter(s=>s.ativo!==false).forEach(s=>{if(combina([s.codigoCadastro,s.titulo,s.categoria,s.etapa,s.tags,s.texto]))itens.push({grupo:'Scripts',tipo:'script',id:s.id,codigo:s.codigoCadastro,titulo:s.titulo,sub:[s.categoria,s.etapa].filter(Boolean).join(' · ')});});
+  return itens;
+}
+function abrirResultadoBuscaV10(tipo,id) {
+  document.getElementById('busca-global-top-resultados')?.classList.remove('show');
+  if(tipo==='pessoa')abrirVisao360PessoaV5(id); else if(tipo==='oportunidade')abrirModalCliente(id); else if(tipo==='imovel')abrirFormImovelV5(id); else if(tipo==='contrato')abrirFormContratoV5(id); else if(tipo==='script')abrirFormScriptAtendimentoV10(id);
+}
+function htmlResultadosBuscaV10(itens,limite=40) {
+  if(!itens.length)return '<div class="entity-meta" style="padding:14px">Nenhum resultado encontrado.</div>';
+  const grupos=['Pessoas','Oportunidades','Imóveis','Contratos','Scripts']; let usados=0;
+  return grupos.map(grupo=>{const lista=itens.filter(x=>x.grupo===grupo).slice(0,limite-usados);usados+=lista.length;if(!lista.length)return'';return `<div class="search-group-title">${grupo} (${itens.filter(x=>x.grupo===grupo).length})</div>${lista.map(x=>`<div class="global-search-result-v5"><span><span class="codigo-chip">${escHtml(x.codigo||'SEM CÓDIGO')}</span> <b>${escHtml(x.titulo)}</b><small class="entity-meta">${escHtml(x.sub||grupo)}</small></span><button class="btn small" onclick="abrirResultadoBuscaV10('${x.tipo}','${x.id}')">Abrir</button></div>`).join('')}`;}).join('');
+}
+function renderBuscaGlobalV10(valor,alvoId='busca-global-top-resultados',compacto=true) {
+  const el=document.getElementById(alvoId);if(!el)return;const q=String(valor||'').trim();
+  if(q.length<2){setSafeHTML(el,compacto?'<div class="entity-meta" style="padding:14px">Digite ao menos 2 caracteres.</div>':'');el.classList.toggle('show',compacto&&document.activeElement?.id==='busca-global-top');return;}
+  const itens=itensBuscaGlobalV10(q);setSafeHTML(el,htmlResultadosBuscaV10(itens,compacto?12:80));el.classList.toggle('show',!!compacto);
+  const total=document.getElementById('pesquisa-geral-total');if(total)total.textContent=`${itens.length} resultado(s)`;
+}
+function abrirPesquisaGeralV10() { const q=document.getElementById('busca-global-top')?.value||'';irPaginaV5('pesquisa');const campo=document.getElementById('pesquisa-geral-v10');if(campo){campo.value=q;campo.focus();renderBuscaGlobalV10(q,'pesquisa-geral-resultados',false);} }
+function renderPesquisaGeralV10(main) {
+  const q=document.getElementById('pesquisa-geral-v10')?.value||document.getElementById('busca-global-top')?.value||'';
+  main.innerHTML=`<div class="page-header"><div><h2>Pesquisa Geral</h2><small>Localize qualquer cadastro pelo código único, nome, telefone, CPF/CNPJ, endereço ou número.</small></div></div><div class="card"><div class="search-shell"><span class="search-icon">🔎</span><input id="pesquisa-geral-v10" value="${escAttr(q)}" placeholder="Ex.: PES-000123, Maria, 99999-0000, Rua…" oninput="renderBuscaGlobalV10(this.value,'pesquisa-geral-resultados',false)"></div><div id="pesquisa-geral-total" class="entity-meta" style="margin:12px 0"></div><div id="pesquisa-geral-resultados"></div></div>`;
+  renderBuscaGlobalV10(q,'pesquisa-geral-resultados',false);
+}
+async function copiarTextoV10(texto,mensagem='Texto copiado.') {
+  try { await navigator.clipboard.writeText(String(texto||''));toast(mensagem); }
+  catch(e) { const area=document.createElement('textarea');area.value=String(texto||'');area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();toast(mensagem); }
+}
+function renderScriptsAtendimentoV10(main) {
+  const anterior=document.getElementById('f-scripts-v10')?.value||'';const q=normalizarBuscaV10(anterior);
+  const lista=state.scriptsAtendimento.filter(s=>s.ativo!==false&&normalizarBuscaV10([s.codigoCadastro,s.titulo,s.categoria,s.etapa,s.tags,s.texto].join(' ')).includes(q));
+  main.innerHTML=`<div class="page-header"><div><h2>Banco de Scripts de Atendimento</h2><small>Textos organizados para copiar, adaptar e usar no WhatsApp.</small></div><button class="btn verde" onclick="abrirFormScriptAtendimentoV10()">+ Novo script</button></div><div class="filtros"><input id="f-scripts-v10" value="${escAttr(anterior)}" placeholder="Buscar código, título, etapa, tag ou conteúdo" oninput="renderScriptsAtendimentoV10(document.getElementById('main'))"></div><div class="entity-grid">${lista.map(s=>`<article class="entity-card"><div><span class="codigo-chip">${escHtml(s.codigoCadastro)}</span></div><h3>${escHtml(s.titulo)}</h3><div class="operation-row"><span class="operation-chip">${escHtml(s.categoria)}</span>${s.etapa?`<span class="operation-chip rent">${escHtml(s.etapa)}</span>`:''}</div><p class="script-body-preview">${escHtml(s.texto)}</p><div class="entity-meta">${escHtml(s.canal||'WhatsApp')}${s.tags?' · '+escHtml(s.tags):''}</div><div class="entity-actions"><button class="btn small" onclick="usarScriptV10('${s.id}')">Copiar</button><button class="btn secondary small" onclick="abrirFormScriptAtendimentoV10('${s.id}')">Editar</button></div></article>`).join('')||'<div class="empty">Nenhum script encontrado.</div>'}</div>`;
+  if(anterior)requestAnimationFrame(()=>{const el=document.getElementById('f-scripts-v10');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}});
+}
+function abrirFormScriptAtendimentoV10(id) {
+  const s=state.scriptsAtendimento.find(x=>x.id===id)||{canal:'WhatsApp',ativo:true};
+  abrirModalLoc(id?'Editar script':'Novo script',`<input type="hidden" id="sv10-id" value="${escAttr(id||'')}"><div class="form-grid">${id?fG('Código único',`<div><span class="codigo-chip">${escHtml(s.codigoCadastro)}</span></div>`):''}${fG('Título *',fInput('sv10-titulo',s.titulo||''),'two')}${fG('Categoria',fInput('sv10-categoria',s.categoria||''))}${fG('Canal',fSelect('sv10-canal',['WhatsApp','Ligação','E-mail','Presencial'],s.canal||'WhatsApp'))}${fG('Etapa do funil',fSelect('sv10-etapa',['',...STATUS_LIST],s.etapa||''))}${fG('Tags',fInput('sv10-tags',s.tags||''))}${fG('Texto do script *',fTextarea('sv10-texto',s.texto||''),'full')}</div><div class="notice">Variáveis disponíveis: <b>{{nome}}</b>, <b>{{corretor}}</b>, <b>{{imovel}}</b> e <b>{{codigo}}</b>.</div>${id?`<button type="button" class="btn danger small" onclick="arquivarScriptAtendimentoV10('${id}')">Arquivar script</button>`:''}`,salvarScriptAtendimentoV10);
+}
+function salvarScriptAtendimentoV10() {
+  const id=locVal('sv10-id'),titulo=locVal('sv10-titulo'),texto=locVal('sv10-texto');if(!titulo||!texto)return toast('Informe o título e o texto do script.');let s=state.scriptsAtendimento.find(x=>x.id===id);if(!s){s={id:uid(),ativo:true,criadoEm:hoje()};state.scriptsAtendimento.push(s);}Object.assign(s,{titulo,categoria:locVal('sv10-categoria')||'Geral',canal:locVal('sv10-canal')||'WhatsApp',etapa:locVal('sv10-etapa'),tags:locVal('sv10-tags'),texto,atualizadoEm:hoje()});if(!salvar(state))return;fecharModal('modal-loc');render();toast('Script salvo com código único.');
+}
+function arquivarScriptAtendimentoV10(id) { const s=state.scriptsAtendimento.find(x=>x.id===id);if(!s||!confirm('Arquivar este script? Ele deixará de aparecer nas seleções, sem ser apagado.'))return;s.ativo=false;s.atualizadoEm=hoje();salvar(state);fecharModal('modal-loc');render();toast('Script arquivado.'); }
+function usarScriptV10(id,clienteId='') { const s=state.scriptsAtendimento.find(x=>x.id===id),c=state.clientes.find(x=>x.id===clienteId)||{};if(s)copiarTextoV10(personalizarTextoScriptV10(s,c),'Script copiado.'); }
 function opcoesPessoasV5(selecionada) {
   return `<option value="">— selecione —</option>` + [...state.pessoas].sort((a,b)=>a.nome.localeCompare(b.nome)).map(p => `<option value="${p.id}" ${p.id===selecionada?'selected':''}>${escHtml(p.nome)}${p.doc?' · '+escHtml(p.doc):''}</option>`).join('');
 }
@@ -5014,14 +5192,14 @@ function renderPessoasV5(main) {
   const campo = document.getElementById('f-pessoas-v5'); if (campo) filtrosV5.pessoas = campo.value;
   const papelCampo = document.getElementById('f-pessoas-papel'); if (papelCampo) filtrosV5.papel = papelCampo.value;
   const q = filtrosV5.pessoas.toLowerCase();
-  const lista = state.pessoas.filter(p => { const papeis=papeisPessoaV5(p); return [p.nome,p.doc,p.whatsapp,p.email,...papeis].join(' ').toLowerCase().includes(q) && (!filtrosV5.papel || papeis.includes(filtrosV5.papel)); });
+  const lista = state.pessoas.filter(p => { const papeis=papeisPessoaV5(p); return [p.codigoCadastro,p.nome,p.doc,p.whatsapp,p.email,...papeis].join(' ').toLowerCase().includes(q) && (!filtrosV5.papel || papeis.includes(filtrosV5.papel)); });
   const oportunidades = state.clientes.filter(c => c.pessoaId).length;
   const proprietarios = state.pessoas.filter(p => papeisPessoaV5(p).includes('Proprietário')).length;
   const investidores = state.pessoas.filter(p => papeisPessoaV5(p).includes('Investidor') || state.perfisBusca.some(x=>x.pessoaId===p.id && (x.finalidades||[]).includes('Investimento'))).length;
   main.innerHTML = `<div class="page-header"><div><h2>Pessoas & Negócios</h2><small>Uma única pessoa pode comprar, vender, investir, locar e ser proprietária.</small></div><div class="actions"><button class="btn verde" onclick="abrirFormPessoaV5()">+ Nova pessoa</button><button class="btn secondary" onclick="abrirModalCliente()">+ Novo negócio</button></div></div>
     <div class="stats-grid"><div class="stat-card"><div class="label">Pessoas únicas</div><div class="value">${state.pessoas.length}</div></div><div class="stat-card verde"><div class="label">Oportunidades vinculadas</div><div class="value">${oportunidades}</div></div><div class="stat-card morno"><div class="label">Proprietários</div><div class="value">${proprietarios}</div></div><div class="stat-card frio"><div class="label">Investidores</div><div class="value">${investidores}</div></div></div>
     <div class="filtros"><input id="f-pessoas-v5" value="${escAttr(filtrosV5.pessoas)}" placeholder="Buscar nome, documento, contato, papel ou negócio" oninput="renderPessoasV5(document.getElementById('main'))"><select id="f-pessoas-papel" onchange="renderPessoasV5(document.getElementById('main'))"><option value="">Todos os relacionamentos</option>${['Oportunidade','Proprietário','Interessado','Investidor','Cliente','Locatário','Parceiro','Fornecedor'].map(x=>`<option value="${x}" ${filtrosV5.papel===x?'selected':''}>${x}</option>`).join('')}</select></div>
-    <div class="entity-grid">${lista.map(p=>{ const imvs=state.imovelProprietarios.filter(v=>v.pessoaId===p.id).length; const negocios=state.clientes.filter(c=>c.pessoaId===p.id).length; const perfis=state.perfisBusca.filter(x=>x.pessoaId===p.id).length; const avals=state.avaliacoes.filter(x=>x.pessoaId===p.id).length; return `<article class="entity-card"><h3>${escHtml(p.nome)}</h3><div class="entity-meta">${escHtml(p.doc||'Documento não informado')} · ${escHtml(p.whatsapp||p.telefone||'Sem telefone')}</div><div class="operation-row">${papeisPessoaV5(p).map(x=>`<span class="operation-chip">${escHtml(x)}</span>`).join('')||'<span class="entity-meta">Sem papel definido</span>'}</div><div class="entity-meta">🏠 ${imvs} imóvel(is) · 🤝 ${negocios} negócio(s) · 🔎 ${perfis} busca(s) · 📐 ${avals} avaliação(ões)</div><div class="entity-actions"><button class="btn small" onclick="abrirVisao360PessoaV5('${p.id}')">Abrir visão 360°</button><button class="btn secondary small" onclick="abrirLeadPessoaV5('${p.id}')">Adicionar negócio</button></div></article>`}).join('') || '<div class="empty">Nenhuma pessoa encontrada.</div>'}</div>`;
+    <div class="entity-grid">${lista.map(p=>{ const imvs=state.imovelProprietarios.filter(v=>v.pessoaId===p.id).length; const negocios=state.clientes.filter(c=>c.pessoaId===p.id).length; const perfis=state.perfisBusca.filter(x=>x.pessoaId===p.id).length; const avals=state.avaliacoes.filter(x=>x.pessoaId===p.id).length; return `<article class="entity-card"><span class="codigo-chip">${escHtml(p.codigoCadastro)}</span><h3>${escHtml(p.nome)}</h3><div class="entity-meta">${escHtml(p.doc||'Documento não informado')} · ${escHtml(p.whatsapp||p.telefone||'Sem telefone')}</div><div class="operation-row">${papeisPessoaV5(p).map(x=>`<span class="operation-chip">${escHtml(x)}</span>`).join('')||'<span class="entity-meta">Sem papel definido</span>'}</div><div class="entity-meta">🏠 ${imvs} imóvel(is) · 🤝 ${negocios} negócio(s) · 🔎 ${perfis} busca(s) · 📐 ${avals} avaliação(ões)</div><div class="entity-actions"><button class="btn small" onclick="abrirVisao360PessoaV5('${p.id}')">Abrir visão 360°</button><button class="btn secondary small" onclick="abrirLeadPessoaV5('${p.id}')">Adicionar negócio</button></div></article>`}).join('') || '<div class="empty">Nenhuma pessoa encontrada.</div>'}</div>`;
 }
 function abrirVisao360PessoaV5(id) {
   const p=pessoaV5(id); if(!p)return;
@@ -5037,9 +5215,9 @@ function abrirVisao360PessoaV5(id) {
   const negocioHtml=negocios.map(c=>`<div class="owner-row"><span><b>${escHtml(c.nome||'Oportunidade')}</b><br><small>${escHtml((c.finalidade||[]).join(', ')||'Sem finalidade')} · ${escHtml(c.status||'Novo Lead')}${c.qualificacao?' · '+escHtml(c.qualificacao):''}${c.adesaoProcesso?' · Adesão '+escHtml(c.adesaoProcesso):''}${scoreComercialV8(c).total!==null?' · Score '+scoreComercialV8(c).total+'/10':''}</small></span><button class="btn secondary small" onclick="abrirModalCliente('${c.id}')">Abrir negócio</button></div>`).join('');
   const tarefaHtml=tarefas.map(t=>`<div class="owner-row"><span>${t.concluida?'✅':'⬜'} ${escHtml(t.titulo||'Tarefa')}<br><small>${t.prazo?'📅 '+fmtDataCurta(t.prazo):'Sem prazo'}${t.prioridade?' · '+escHtml(t.prioridade):''}</small></span><button class="btn secondary small" onclick="abrirModalTarefa('${t.id}')">Abrir</button></div>`).join('');
   const avpHtml=avaliacoes.map(a=>{const i=imovelV5(a.imovelId);return `<div class="owner-row"><span>📐 ${escHtml(i?enderecoImovelV5(i):'Imóvel')}<br><small>${Number(a.total||0)}/50 · ${escHtml(a.classificacao||'Sem classificação')} · ${fmtDataCurta(a.data)}</small></span><button class="btn secondary small" onclick="abrirFormAvaliacaoV5('${a.id}')">Abrir</button></div>`}).join('');
-  const perfilHtml=perfis.map(x=>`<div class="owner-row"><span>🎯 ${escHtml((x.finalidades||[]).join(', ')||'Busca')} · ${escHtml(x.tipo||'Qualquer tipo')} · ${escHtml(x.bairros||'Qualquer bairro')}</span></div>`).join('');
+  const perfilHtml=perfis.map(x=>{const c=negocios.find(n=>n.id===x.leadId),texto=x.textoGrupo||c?.perfilBusca?.textoGrupo||gerarTextoBuscaGrupoV10(x,c||{});return `<div class="card" style="margin-bottom:10px"><div><span class="codigo-chip">${escHtml(c?.codigoCadastro||'PERFIL')}</span> 🎯 <b>${escHtml((x.finalidades||[]).join(', ')||'Busca')}</b> · ${escHtml(x.tipo||'Qualquer tipo')} · ${escHtml(x.bairros||'Qualquer bairro')}</div><p style="white-space:pre-wrap">${escHtml(texto)}</p><button class="btn secondary small" onclick="copiarPerfilBuscaV10('${x.leadId||''}')">Copiar para grupos</button></div>`;}).join('');
   const historicoHtml=historico.map(h=>`<div class="timeline-item"><div class="data">${fmtData(h.data)}</div><div class="texto">${escHtml(h.texto||'')}<small style="display:block;color:var(--cinza)">${escHtml(h.origem||'')}</small></div></div>`).join('');
-  document.getElementById('detalhe-nome').textContent=p.nome;
+  document.getElementById('detalhe-nome').textContent=`${p.codigoCadastro} · ${p.nome}`;
   document.getElementById('btn-editar-cliente').textContent='Editar pessoa'; document.getElementById('btn-editar-cliente').onclick=()=>{fecharModal('modal-detalhe');abrirFormPessoaV5(id);};
   document.getElementById('btn-excluir-cliente').textContent='Excluir pessoa'; document.getElementById('btn-excluir-cliente').onclick=()=>excluirPessoaV5(id);
   document.getElementById('btn-imprimir-ficha').textContent='Imprimir visão 360°'; document.getElementById('btn-imprimir-ficha').onclick=()=>window.print();
@@ -5100,9 +5278,9 @@ function abrirLeadPessoaV5(id) {
 
 function renderImoveisV5(main) {
   const t=document.getElementById('f-imoveis-v5'); if(t)filtrosV5.imoveis=t.value; const o=document.getElementById('f-operacao-v5');if(o)filtrosV5.operacao=o.value; const q=filtrosV5.imoveis.toLowerCase();
-  const lista=state.imoveis.filter(i=>[i.codigo,enderecoImovelV5(i),i.tipo].join(' ').toLowerCase().includes(q) && (!filtrosV5.operacao||(filtrosV5.operacao==='Venda'?i.vendaAtiva:i.locacaoAtiva)));
+  const lista=state.imoveis.filter(i=>[i.codigoCadastro,i.codigo,enderecoImovelV5(i),i.tipo].join(' ').toLowerCase().includes(q) && (!filtrosV5.operacao||(filtrosV5.operacao==='Venda'?i.vendaAtiva:i.locacaoAtiva)));
   main.innerHTML=`<div class="page-header"><div><h2>Imóveis</h2><small>Um mesmo imóvel pode estar simultaneamente à venda e para locação.</small></div><button class="btn verde" onclick="abrirFormImovelV5()">+ Novo imóvel</button></div><div class="filtros"><input id="f-imoveis-v5" value="${escAttr(filtrosV5.imoveis)}" placeholder="Código, endereço ou tipo" oninput="renderImoveisV5(document.getElementById('main'))"><select id="f-operacao-v5" onchange="renderImoveisV5(document.getElementById('main'))"><option value="">Todas as operações</option><option ${filtrosV5.operacao==='Venda'?'selected':''}>Venda</option><option ${filtrosV5.operacao==='Locação'?'selected':''}>Locação</option></select></div>
-  <div class="entity-grid">${lista.map(i=>{const donos=state.imovelProprietarios.filter(v=>v.imovelId===i.id).map(v=>pessoaV5(v.pessoaId)?.nome).filter(Boolean);const qtdAval=state.avaliacoes.filter(a=>a.imovelId===i.id).length;return `<article class="entity-card"><h3>${escHtml(i.codigo||i.tipo||'Imóvel')}</h3><div>${escHtml(enderecoImovelV5(i))}</div><div class="operation-row">${i.vendaAtiva?`<span class="operation-chip">Venda · R$ ${fmtMoney(parseMoney(i.valorVenda))}</span>`:''}${i.locacaoAtiva?`<span class="operation-chip rent">Locação · R$ ${fmtMoney(parseMoney(i.aluguel))}/mês</span>`:''}</div><div class="entity-meta">👤 ${donos.length?escHtml(donos.join(', ')):'Proprietário ainda não vinculado'} · 📐 ${qtdAval} avaliação(ões)</div><div class="entity-actions"><button class="btn small" onclick="abrirFormImovelV5('${i.id}')">Abrir visão 360°</button><button class="btn secondary small" onclick="abrirFormAvaliacaoV5(null,'${i.id}')">Avaliar imóvel</button></div></article>`}).join('')||'<div class="empty">Nenhum imóvel encontrado.</div>'}</div>`;
+  <div class="entity-grid">${lista.map(i=>{const donos=state.imovelProprietarios.filter(v=>v.imovelId===i.id).map(v=>pessoaV5(v.pessoaId)?.nome).filter(Boolean);const qtdAval=state.avaliacoes.filter(a=>a.imovelId===i.id).length;return `<article class="entity-card"><span class="codigo-chip">${escHtml(i.codigoCadastro)}</span><h3>${escHtml(i.codigo||i.tipo||'Imóvel')}</h3><div>${escHtml(enderecoImovelV5(i))}</div><div class="operation-row">${i.vendaAtiva?`<span class="operation-chip">Venda · R$ ${fmtMoney(parseMoney(i.valorVenda))}</span>`:''}${i.locacaoAtiva?`<span class="operation-chip rent">Locação · R$ ${fmtMoney(parseMoney(i.aluguel))}/mês</span>`:''}</div><div class="entity-meta">👤 ${donos.length?escHtml(donos.join(', ')):'Proprietário ainda não vinculado'} · 📐 ${qtdAval} avaliação(ões)</div><div class="entity-actions"><button class="btn small" onclick="abrirFormImovelV5('${i.id}')">Abrir visão 360°</button><button class="btn secondary small" onclick="abrirFormAvaliacaoV5(null,'${i.id}')">Avaliar imóvel</button></div></article>`}).join('')||'<div class="empty">Nenhum imóvel encontrado.</div>'}</div>`;
 }
 function abrirFormImovelV5(id) {
   const i=imovelV5(id)||{vendaAtiva:true,locacaoAtiva:false}; const links=id?state.imovelProprietarios.filter(v=>v.imovelId===id):[]; const interessados=id?state.interesses.filter(x=>x.imovelId===id):[]; const contratos=id?state.locContratos.filter(x=>x.imovelV5Id===id):[];
@@ -5175,7 +5353,7 @@ function abrirFormImovelV5(id, proprietarioPreselecionado, contexto) {
   const docHtml=IMOVEL_DOCUMENTOS_V5.map(([key,label])=>`<label class="doc-item"><input type="checkbox" class="iv5-doc" data-key="${key}" ${docs[key]?'checked':''}> ${label}</label>`).join('');
   const amenHtml=IMOVEL_AMENIDADES_V5.map(x=>`<label><input type="checkbox" class="iv5-amenidade" value="${escAttr(x)}" ${amenidades.includes(x)?'checked':''}> ${x}</label>`).join('');
   const novoProprietarioHtml=id?'':`<div class="section-title">👥 Proprietário principal</div><div class="form-grid">${fG('Proprietário *',`<select id="iv5-proprietario">${opcoesPessoasV5(proprietarioPreselecionado||'')}</select>`)}${fG('Percentual',fInput('iv5-percentual','100',{percent:true,unit:'%'}))}</div><small style="color:var(--cinza)">O imóvel será conectado automaticamente à pessoa selecionada ao salvar.</small>`;
-  let body=`<input type="hidden" id="iv5-id" value="${escAttr(id||'')}">
+  let body=`<input type="hidden" id="iv5-id" value="${escAttr(id||'')}">${id?`<div style="margin-bottom:10px"><span class="codigo-chip">${escHtml(i.codigoCadastro)}</span> Código único do cadastro</div>`:''}
   <div class="section-title">🏠 Identificação e localização</div><div class="form-grid four">
     ${fG('Código',fInput('iv5-codigo',i.codigo||''))}${fG('Tipo',fSelect('iv5-tipo',['Casa','Apartamento','Terreno / Lote','Sala comercial','Galpão','Rural / Chácara','Outro'],i.tipo||'',true))}${fG('Finalidade',fSelect('iv5-finalidade',['Venda','Locação','Venda e locação','Investimento'],i.finalidadeUso||'',true))}
     ${fG('Logradouro *',fInput('iv5-logradouro',i.logradouro||i.endereco||''),'two')}${fG('Número',fInput('iv5-numero',i.numero||''))}${fG('Zona',fSelect('iv5-zona',['Zona Sul','Zona Norte','Zona Leste','Zona Oeste','Centro','Rural'],i.zona||'',true))}${fG('Bairro',fInput('iv5-bairro',i.bairro||''),'two')}${fG('Cidade / Estado',fInput('iv5-cidade',i.cidade||'Porto Velho/RO'),'two')}
@@ -5201,7 +5379,7 @@ function abrirFormImovelV5(id, proprietarioPreselecionado, contexto) {
   ${id?`<div class="section-title">👥 Proprietários</div><div class="card">${links.map(v=>{const p=pessoaV5(v.pessoaId);return `<div class="owner-row"><span><b>${escHtml(p?.nome||'Pessoa')}</b> · ${fmtNumeroBR(parsePercentual(v.percentual),2)}%${v.principal?' · principal':''}</span><span><button class="btn secondary small" onclick="abrirFormPessoaV5('${v.pessoaId}','${id}')">Editar</button> <button class="btn danger small" onclick="removerProprietarioV5('${v.id}')">Remover</button></span></div>`}).join('')||'<div class="entity-meta">Nenhum proprietário vinculado.</div>'}<div class="form-grid" style="margin-top:12px">${fG('Vincular pessoa',`<select id="iv5-proprietario">${opcoesPessoasV5(proprietarioPreselecionado||'')}</select>`)}${fG('Percentual',fInput('iv5-percentual','100',{percent:true,unit:'%'}))}</div><button class="btn secondary small" onclick="abrirFormPessoaV5(null,'${id}')">+ Cadastrar nova pessoa</button></div><div class="section-title">📊 Operação 360°</div><div class="result-grid"><div class="result-box"><small>Interessados</small><b>${interessados.length}</b></div><div class="result-box"><small>Contratos</small><b>${contratos.length}</b></div><div class="result-box"><small>Comissões</small><b>${state.comissoes.filter(x=>x.imovelId===id).length}</b></div><div class="result-box"><small>Simulações</small><b>${state.simulacoesFinanciamento.filter(x=>x.imovelId===id).length+state.simulacoesInvestimento.filter(x=>x.imovelId===id).length}</b></div><div class="result-box"><small>Avaliações AVP</small><b>${state.avaliacoes.filter(x=>x.imovelId===id).length}</b></div></div><button class="btn secondary small" onclick="abrirFormAvaliacaoV5(null,'${id}')">+ Nova avaliação AVP</button> <button class="btn danger small" onclick="excluirImovelV5('${id}')">Excluir imóvel</button>`:`<div class="notice">Salve o imóvel para então vincular pessoas e acessar a visão 360°.</div>`}`;
   body += novoProprietarioHtml;
   body += id ? `<div class="actions" style="margin-top:14px"><button type="button" class="btn secondary small iv5-imprimir" data-id="${id}">🖨 Imprimir ficha completa / Salvar em PDF</button></div>` : '';
-  abrirModalLoc(id?'Imóvel · ficha completa 360°':'Novo imóvel · ficha completa',body,salvarImovelV5);
+  abrirModalLoc(id?`${i.codigoCadastro} · Imóvel · ficha completa 360°`:'Novo imóvel · ficha completa',body,salvarImovelV5);
   const valorEl=document.getElementById('iv5-valor-venda'), pctEl=document.getElementById('iv5-com-venda'), haEl=document.getElementById('iv5-hectares'), alqEl=document.getElementById('iv5-alqueires'), tipoAlqEl=document.getElementById('iv5-alqueire-tipo');
   valorEl?.addEventListener('input',calcularComissaoCaptacaoV5); pctEl?.addEventListener('input',calcularComissaoCaptacaoV5); haEl?.addEventListener('input',()=>calcularAlqueireV5('ha')); alqEl?.addEventListener('input',()=>calcularAlqueireV5('alq')); tipoAlqEl?.addEventListener('change',()=>calcularAlqueireV5(parseMoney(haEl?.value)?'ha':'alq'));
   document.querySelectorAll('.iv5-preset-comissao').forEach(btn=>btn.addEventListener('click',()=>{if(pctEl){pctEl.value=btn.dataset.value||'';calcularComissaoCaptacaoV5();}}));
@@ -5433,6 +5611,7 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
 });
 document.getElementById('form-cliente')?.addEventListener('submit', e => { e.preventDefault(); salvarCliente(); });
 document.getElementById('form-tarefa')?.addEventListener('submit', e => { e.preventDefault(); salvarTarefa(); });
+document.addEventListener('click', e => { if(!e.target.closest?.('.global-topbar'))document.getElementById('busca-global-top-resultados')?.classList.remove('show'); });
 
 document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.getAttribute?.('role') === 'button' && !/^(BUTTON|A)$/.test(e.target.tagName)) {
@@ -5509,6 +5688,16 @@ function executarAutotestes() {
     const tpl = document.createElement('template'); tpl.innerHTML = '<img src="x" onerror="alert(1)"><script>alert(1)<\/script>';
     return !tpl.content.querySelector('script') && !tpl.content.querySelector('img')?.hasAttribute('onerror');
   });
+  testar('códigos únicos são atribuídos por tipo', () => {
+    const m=normalizarState({schemaVersion:10,clientes:[{id:'c1',nome:'Ana'}],tarefas:[],pessoas:[{id:'p1',nome:'Ana'}],imoveis:[{id:'i1'}]});
+    return /^OP-\d{6}$/.test(m.clientes[0].codigoCadastro)&&/^PES-\d{6}$/.test(m.pessoas[0].codigoCadastro)&&/^IMV-\d{6}$/.test(m.imoveis[0].codigoCadastro);
+  });
+  testar('código existente permanece estável', () => {
+    const m=normalizarState({schemaVersion:11,clientes:[{id:'c1',nome:'Ana',codigoCadastro:'OP-000123'}],tarefas:[],sequencias:{oportunidade:123}});
+    return m.clientes[0].codigoCadastro==='OP-000123';
+  });
+  testar('migração cria banco inicial de scripts', () => normalizarState({schemaVersion:10,clientes:[],tarefas:[]}).scriptsAtendimento.length>=10);
+  testar('descrição de busca inclui código e requisitos', () => gerarTextoBuscaGrupoV10({tipo:'Casa',bairros:'Areal',valorMax:'500.000',quartos:'3'},{codigoCadastro:'OP-000001',finalidade:['Compra']}).includes('OP-000001'));
   const aprovados = testes.filter(t => t.ok).length;
   return { ok: aprovados === testes.length, aprovados, total:testes.length, testes };
 }
