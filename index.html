@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CRM Imobiliário Local v10.1 — André Barros</title>
+<title>CRM Imobiliário Local v10.2 — André Barros</title>
 <style>
   :root {
     --azul: #006994;
@@ -943,6 +943,7 @@
       <button class="nav-btn" data-page="pessoas"><span class="icon">👥</span><span>Pessoas</span></button>
       <button class="nav-btn" data-page="imoveis-v5"><span class="icon">🏢</span><span>Imóveis</span></button>
       <button class="nav-btn" data-page="kanban"><span class="icon">📋</span><span>Pipeline</span></button>
+      <button class="nav-btn" data-page="relatorio-procura"><span class="icon">🧾</span><span>Relatório Procura / Necessidade</span></button>
       <button class="nav-btn" data-page="tarefas"><span class="icon">✓</span><span>Follow-up / Tarefas</span></button>
       <button class="nav-btn" data-page="scripts"><span class="icon">💬</span><span>Scripts</span></button>
       <button class="nav-btn" data-page="dashboard"><span class="icon">📊</span><span>Indicadores</span></button>
@@ -953,7 +954,7 @@
       <button class="nav-btn" data-page="config"><span class="icon">⚙</span><span>Backup</span></button>
     </nav>
     <div class="footer" id="app-footer">
-      v10.1 · dados locais
+      v10.2 · dados locais
     </div>
   </aside>
   <div class="workspace">
@@ -988,11 +989,11 @@
           </div>
           <div class="form-group">
             <label>WhatsApp</label>
-            <input type="tel" id="c-whatsapp" placeholder="(69) 99999-9999" maxlength="15">
+            <input type="tel" id="c-whatsapp" placeholder="(69) 99999-9999" maxlength="20">
           </div>
           <div class="form-group">
             <label>Telefone alternativo</label>
-            <input type="tel" id="c-telefone" placeholder="(69) 3000-0000" maxlength="15">
+            <input type="tel" id="c-telefone" placeholder="(69) 3000-0000" maxlength="20">
           </div>
           <div class="form-group">
             <label>E-mail</label>
@@ -1015,6 +1016,7 @@
             <input type="date" id="c-nascimento">
           </div>
         </div>
+        <div id="c-celular-duplicado" class="notice" style="display:none"></div>
 
         <div class="section-title">💍 Estado Civil & Regime de Bens</div>
         <div class="form-grid">
@@ -1256,8 +1258,10 @@
           <div class="form-group"><label>Cidade / Estado</label><input id="c-busca-cidade" value="Porto Velho/RO" oninput="atualizarCompatibilidadeBuscaV10()"></div>
           <div class="form-group"><label>Valor máximo</label><input id="c-busca-valor-max" class="money-field" inputmode="decimal" data-number-kind="currency" oninput="atualizarCompatibilidadeBuscaV10()"></div>
           <div class="form-group"><label>Quartos mínimos</label><input id="c-busca-quartos" type="number" min="0" step="1" oninput="atualizarCompatibilidadeBuscaV10()"></div>
+          <div class="form-group"><label>Vagas mínimas</label><input id="c-busca-vagas" type="number" min="0" step="1" oninput="atualizarCompatibilidadeBuscaV10()"></div>
           <div class="form-group two"><label>Pagamento / financiamento</label><input id="c-busca-pagamento" placeholder="Ex.: financiado, à vista, aceita FGTS"></div>
           <div class="form-group full"><label>Características indispensáveis</label><input id="c-busca-indispensaveis" placeholder="Ex.: garagem, quintal, 2 banheiros, perto de escola"></div>
+          <div class="form-group full"><label>Observações da necessidade</label><textarea id="c-busca-observacoes" rows="3" placeholder="Ex.: precisa mudar até dezembro; aceita condomínio; perto do trabalho."></textarea></div>
           <div class="form-group full"><label>Texto pronto para grupos</label><textarea id="c-busca-texto-grupo" rows="5" placeholder="O sistema gera uma descrição, mas você pode editar e manter seu próprio texto."></textarea><div class="actions" style="margin-top:8px"><button type="button" class="btn secondary small" onclick="gerarDescricaoBuscaV10()">Gerar/atualizar texto</button><button type="button" class="btn small" onclick="copiarDescricaoBuscaV10()">Copiar para grupos</button></div></div>
           <div class="form-group full"><div id="c-busca-compatibilidade" class="notice">Preencha o perfil para conferir os imóveis compatíveis.</div></div>
         </div>
@@ -1651,9 +1655,10 @@
 <script>
 /* ===== VERSÃO & CHANGELOG =====
    Incremente APP_VERSION e adicione uma linha no topo de CHANGELOG a cada alteração. */
-const APP_VERSION = '10.1';
+const APP_VERSION = '10.2';
 const APP_AUTOR = 'André Barros';
 const CHANGELOG = [
+  { v: '10.2', desc: 'Relatório de Procura / Necessidade com filtros, agrupamento, impressão, CSV e bloqueio de celular duplicado.' },
   { v: '10.1', desc: 'Nova etapa Procura / Necessidade no Kanban e descrição da procura em destaque na abertura da visão 360°.' },
   { v: '10.0', desc: 'Pesquisa geral em todas as telas, códigos públicos permanentes, biblioteca de scripts e perfil de busca com texto pronto para grupos.' },
   { v: '9.0', desc: 'Base única de Pessoas e Imóveis: proprietário passa a ser um vínculo de propriedade, Locação usa os mesmos cadastros e registros antigos são reconciliados sem exclusão.' },
@@ -1685,7 +1690,7 @@ const CHANGELOG = [
 const STORAGE_KEY = 'crm_andre_v5';
 const LEGACY_STORAGE_KEYS = ['crm_andre_v4', 'crm_andre_v3', 'crm_andre_v2', 'crm_andre_v1'];
 const BACKUP_STORAGE_KEY = 'crm_andre_v5_backup';
-const DATA_SCHEMA_VERSION = 11;
+const DATA_SCHEMA_VERSION = 12;
 const STATUS_LIST = ['Novo Lead','Procura / Necessidade','Em Atendimento','Visita Agendada','Proposta / Negociação','Perdido','Em Pausa','Reciclagem / Follow-up','Fechado'];
 const STATUS_CLASS = {
   'Novo Lead': 'novo',
@@ -2104,6 +2109,17 @@ function migrarEstruturaV11(base) {
     };
   });
 }
+function migrarEstruturaV12(base) {
+  base.clientes.forEach(c => {
+    const perfil=normalizarRegistro(c.perfilBusca), legado=normalizarRegistro(c.imovel);
+    c.perfilBusca={...perfil,
+      vagas:String(perfil.vagas||legado.vagas||''),
+      observacoesNecessidade:String(perfil.observacoesNecessidade||perfil.indispensaveis||legado.obs||'')
+    };
+    const pb=base.perfisBusca.find(x=>x.leadId===c.id);
+    if(pb) Object.assign(pb,{vagas:c.perfilBusca.vagas,observacoesNecessidade:c.perfilBusca.observacoesNecessidade});
+  });
+}
 
 function normalizarState(raw) {
   const base = estadoVazio();
@@ -2162,6 +2178,7 @@ function normalizarState(raw) {
   if (schemaOrigem < 8) migrarEstruturaV8(base);
   if (schemaOrigem < 10) migrarEstruturaV10(base);
   if (schemaOrigem < 11) migrarEstruturaV11(base);
+  if (schemaOrigem < 12) migrarEstruturaV12(base);
   garantirCodigosCadastroV10(base);
   const idsClientes = new Set(base.clientes.map(x => x.id));
   const idsProps = new Set(base.locProprietarios.map(x => x.id));
@@ -2408,6 +2425,7 @@ function dataNaoFutura(valor) { const d = dataLocal(valor); return !d || d <= in
 function mascaraTelefone(input) {
   input.addEventListener('input', (e) => {
     let v = e.target.value.replace(/\D/g, '');
+    if (v.startsWith('55') && v.length >= 12) v = v.slice(2);
     if (v.length > 11) v = v.slice(0, 11);
     if (v.length <= 10) {
       v = v.replace(/^(\d{0,2})(\d{0,4})(\d{0,4}).*/, (_, a, b, c) => {
@@ -2507,6 +2525,7 @@ function render() {
   else if (currentPage === 'avaliacoes-v5') renderAvaliacoesV5(main);
   else if (currentPage === 'contratos-v5') renderContratosV5(main);
   else if (currentPage === 'kanban') renderKanban(main);
+  else if (currentPage === 'relatorio-procura') renderRelatorioProcuraV12(main);
   else if (currentPage === 'tarefas') renderTarefas(main);
   else if (currentPage === 'scripts') renderScriptsAtendimentoV10(main);
   else if (currentPage === 'calculadora') renderCalculadora(main);
@@ -3334,9 +3353,9 @@ function escAttr(s) {
 const escHtml = escAttr;
 
 const EVENTOS_INLINE_PERMITIDOS = {
-  onclick: /^(?:event\.stopPropagation\(\);\s*)?(?:abrirModalCliente|abrirModalTarefa|abrirDetalhe|abrirDashboardLead|abrirInteracao|abrirClienteDoModalLoc|fecharModal|salvarCliente|salvarTarefa|salvarInteracao|setCalcModo|stepCalc|stepAvp|setPercCalc|setDivisaoCalc|novaTarefaVinculo|setLocSub|abrirFormImovel|abrirFormProprietario|abrirFormLocatario|abrirFormContrato|locExcluir|irParaLoc|toggleTarefa|excluirTarefa|kanbanMudarStatus|window\.print|importarDados|exportarDados|salvarBackupEmPastaV5|apagarTudo|restaurarBackupAutomatico|abrirFormPessoaV5|abrirVisao360PessoaV5|salvarPessoaV5|excluirPessoaV5|abrirFormImovelV5|salvarImovelV5|excluirImovelV5|removerProprietarioV5|abrirFormContratoV5|salvarContratoV5|excluirContratoV5|abrirFormComissaoV5|salvarComissaoV5|excluirComissaoV5|setSimuladorV5|salvarFinanciamentoV5|salvarInvestimentoV5|resolverPendenciaMigracaoV5|irPaginaV5|abrirLeadPessoaV5|abrirFormAvaliacaoV5|salvarAvaliacaoV5|excluirAvaliacaoV5|imprimirAvaliacaoV5|calcularAvaliacaoV5|abrirPesquisaGeralV10|abrirResultadoBuscaV10|abrirFormScriptAtendimentoV10|salvarScriptAtendimentoV10|arquivarScriptAtendimentoV10|copiarTextoV10|usarScriptV10|copiarScriptSelecionadoV10|gerarDescricaoBuscaV10|copiarDescricaoBuscaV10|copiarPerfilBuscaV10)\([^;]*\);?$/,
-  onchange: /^(?:toggleTarefa|render|atualizarFiltroClientes|aplicarFaixaCalc|aplicarModoDivisao|toggleLocParticipantes|locContratoPrefill|atualizarProprietariosContratoV10|toggleCampoConjuge|kanbanMudarStatus|renderPessoasV5|renderImoveisV5|calcularFinanciamentoV5|calcularInvestimentoV5|calcularComissaoV5|toggleOperacaoV5|calcularAvaliacaoV5)\([^;]*\);?$/,
-  oninput: /^(?:render|atualizarFiltroClientes|renderBuscaGlobalV5|renderBuscaGlobalV10|renderScriptsAtendimentoV10|atualizarCompatibilidadeBuscaV10|calcCustomMarcar|calcularHonorarios|calcularLocComissao|renderPessoasV5|renderImoveisV5|calcularFinanciamentoV5|calcularInvestimentoV5|calcularComissaoV5|calcularAvaliacaoV5)\([^;]*\);?$/,
+  onclick: /^(?:event\.stopPropagation\(\);\s*)?(?:abrirModalCliente|abrirModalTarefa|abrirDetalhe|abrirDashboardLead|abrirInteracao|abrirClienteDoModalLoc|fecharModal|salvarCliente|salvarTarefa|salvarInteracao|setCalcModo|stepCalc|stepAvp|setPercCalc|setDivisaoCalc|novaTarefaVinculo|setLocSub|abrirFormImovel|abrirFormProprietario|abrirFormLocatario|abrirFormContrato|locExcluir|irParaLoc|toggleTarefa|excluirTarefa|kanbanMudarStatus|window\.print|importarDados|exportarDados|salvarBackupEmPastaV5|apagarTudo|restaurarBackupAutomatico|abrirFormPessoaV5|abrirVisao360PessoaV5|salvarPessoaV5|excluirPessoaV5|abrirFormImovelV5|salvarImovelV5|excluirImovelV5|removerProprietarioV5|abrirFormContratoV5|salvarContratoV5|excluirContratoV5|abrirFormComissaoV5|salvarComissaoV5|excluirComissaoV5|setSimuladorV5|salvarFinanciamentoV5|salvarInvestimentoV5|resolverPendenciaMigracaoV5|irPaginaV5|abrirLeadPessoaV5|abrirFormAvaliacaoV5|salvarAvaliacaoV5|excluirAvaliacaoV5|imprimirAvaliacaoV5|calcularAvaliacaoV5|abrirPesquisaGeralV10|abrirResultadoBuscaV10|abrirFormScriptAtendimentoV10|salvarScriptAtendimentoV10|arquivarScriptAtendimentoV10|copiarTextoV10|usarScriptV10|copiarScriptSelecionadoV10|gerarDescricaoBuscaV10|copiarDescricaoBuscaV10|copiarPerfilBuscaV10|abrirClienteExistenteV12|imprimirRelatorioProcuraV12|exportarRelatorioProcuraCsvV12)\([^;]*\);?$/,
+  onchange: /^(?:toggleTarefa|render|atualizarFiltroClientes|atualizarFiltroRelatorioProcuraV12|aplicarFaixaCalc|aplicarModoDivisao|toggleLocParticipantes|locContratoPrefill|atualizarProprietariosContratoV10|toggleCampoConjuge|kanbanMudarStatus|renderPessoasV5|renderImoveisV5|calcularFinanciamentoV5|calcularInvestimentoV5|calcularComissaoV5|toggleOperacaoV5|calcularAvaliacaoV5)\([^;]*\);?$/,
+  oninput: /^(?:render|atualizarFiltroClientes|atualizarFiltroRelatorioProcuraV12|renderBuscaGlobalV5|renderBuscaGlobalV10|renderScriptsAtendimentoV10|atualizarCompatibilidadeBuscaV10|calcCustomMarcar|calcularHonorarios|calcularLocComissao|renderPessoasV5|renderImoveisV5|calcularFinanciamentoV5|calcularInvestimentoV5|calcularComissaoV5|calcularAvaliacaoV5)\([^;]*\);?$/,
   onfocus: /^(?:renderBuscaGlobalV10)\([^;]*\);?$/,
   ondragstart: /^kanbanDragStart\([^;]*\);?$/,
   ondragover: /^kanbanDragOver\([^;]*\);?$/,
@@ -3986,14 +4005,37 @@ function toggleCampoConjuge() {
 }
 
 function perfilBuscaFormularioV10() {
-  return { tipo:document.getElementById('c-busca-tipo')?.value.trim()||'', bairros:document.getElementById('c-busca-bairros')?.value.trim()||'', cidade:document.getElementById('c-busca-cidade')?.value.trim()||'', valorMax:document.getElementById('c-busca-valor-max')?.value.trim()||'', quartos:document.getElementById('c-busca-quartos')?.value||'', pagamento:document.getElementById('c-busca-pagamento')?.value||'', indispensaveis:document.getElementById('c-busca-indispensaveis')?.value.trim()||'', textoGrupo:document.getElementById('c-busca-texto-grupo')?.value.trim()||'' };
+  return { tipo:document.getElementById('c-busca-tipo')?.value.trim()||'', bairros:document.getElementById('c-busca-bairros')?.value.trim()||'', cidade:document.getElementById('c-busca-cidade')?.value.trim()||'', valorMax:document.getElementById('c-busca-valor-max')?.value.trim()||'', quartos:document.getElementById('c-busca-quartos')?.value||'', vagas:document.getElementById('c-busca-vagas')?.value||'', pagamento:document.getElementById('c-busca-pagamento')?.value||'', indispensaveis:document.getElementById('c-busca-indispensaveis')?.value.trim()||'', observacoesNecessidade:document.getElementById('c-busca-observacoes')?.value.trim()||'', textoGrupo:document.getElementById('c-busca-texto-grupo')?.value.trim()||'' };
 }
+function normalizarCelularV12(valor) {
+  let digitos=String(valor||'').replace(/\D/g,'');
+  if(digitos.startsWith('55') && digitos.length>=12) digitos=digitos.slice(2);
+  return digitos;
+}
+function encontrarDuplicidadeCelularV12(numeros, idIgnorado='') {
+  const alvo=[...new Set((Array.isArray(numeros)?numeros:[numeros]).map(normalizarCelularV12).filter(x=>x.length>=10))];
+  if(!alvo.length)return null;
+  return state.clientes.find(c=>c.id!==idIgnorado && [c.whatsapp,c.telefone].map(normalizarCelularV12).some(n=>n&&alvo.includes(n)))||null;
+}
+function limparDuplicidadeCelularV12() { const el=document.getElementById('c-celular-duplicado');if(el){el.style.display='none';el.replaceChildren();} }
+function exibirDuplicidadeCelularV12(cliente) {
+  const el=document.getElementById('c-celular-duplicado');if(!el)return;
+  setSafeHTML(el,`<b>Este celular já está cadastrado para ${escHtml(cliente.nome)}.</b> Abra o cadastro existente para atualizar as informações. <button type="button" class="btn secondary small" onclick="abrirClienteExistenteV12('${cliente.id}')">Abrir cliente existente</button>`);
+  el.style.display='block';
+}
+function verificarDuplicidadeCelularFormularioV12() {
+  const id=document.getElementById('cliente-id')?.value||'', duplicado=encontrarDuplicidadeCelularV12([document.getElementById('c-whatsapp')?.value,document.getElementById('c-telefone')?.value],id);
+  if(duplicado)exibirDuplicidadeCelularV12(duplicado);else limparDuplicidadeCelularV12();
+  return duplicado;
+}
+function abrirClienteExistenteV12(id) { limparDuplicidadeCelularV12(); fecharModal('modal-cliente'); abrirDashboardLead(id); }
 function gerarTextoBuscaGrupoV10(perfil,cliente={}) {
   const fins=(cliente.finalidade||[]).filter(x=>['Compra','Aluguel','Investimento'].includes(x));
   const operacao=fins.includes('Aluguel')&&!fins.includes('Compra')?'para locação':fins.includes('Investimento')&&!fins.includes('Compra')?'para investimento':'para compra';
   const partes=[`Pessoal, procuro ${perfil.tipo||'imóvel'} ${operacao}`];
   if(perfil.bairros)partes.push(`nos bairros ${perfil.bairros}`); else if(perfil.cidade)partes.push(`em ${perfil.cidade}`);
   if(perfil.quartos)partes.push(`com no mínimo ${perfil.quartos} quarto(s)`);
+  if(perfil.vagas)partes.push(`com no mínimo ${perfil.vagas} vaga(s)`);
   if(parseMoney(perfil.valorMax))partes.push(`até R$ ${fmtMoney(parseMoney(perfil.valorMax))}`);
   if(perfil.pagamento)partes.push(`pagamento: ${perfil.pagamento.toLowerCase()}`);
   if(perfil.indispensaveis)partes.push(`indispensável: ${perfil.indispensaveis}`);
@@ -4004,7 +4046,8 @@ function copiarDescricaoBuscaV10() { const campo=document.getElementById('c-busc
 function copiarPerfilBuscaV10(leadId) { const c=state.clientes.find(x=>x.id===leadId),p=c?.perfilBusca||state.perfisBusca.find(x=>x.leadId===leadId)||{};copiarTextoV10(p.textoGrupo||gerarTextoBuscaGrupoV10(p,c||{}),'Descrição da procura copiada.'); }
 function imoveisCompativeisV10(perfil,finalidades=[]) {
   const bairros=normalizarBuscaV10(perfil.bairros).split(/[,;/]+/).map(x=>x.trim()).filter(Boolean), tipo=normalizarBuscaV10(perfil.tipo), cidade=normalizarBuscaV10(perfil.cidade), max=parseMoney(perfil.valorMax), quartos=Number(perfil.quartos)||0;
-  return state.imoveis.filter(i=>{const querLoc=finalidades.includes('Aluguel')&&!finalidades.includes('Compra'), ativo=querLoc?i.locacaoAtiva:i.vendaAtiva, preco=parseMoney(querLoc?i.aluguel:i.valorVenda);return ativo&&(!tipo||normalizarBuscaV10(i.tipo).includes(tipo))&&(!cidade||normalizarBuscaV10(i.cidade).includes(cidade))&&(!bairros.length||bairros.some(b=>normalizarBuscaV10(i.bairro).includes(b)))&&(!max||!preco||preco<=max)&&(!quartos||Number(i.quartos||0)>=quartos);});
+  const vagas=Number(perfil.vagas)||0;
+  return state.imoveis.filter(i=>{const querLoc=finalidades.includes('Aluguel')&&!finalidades.includes('Compra'), ativo=querLoc?i.locacaoAtiva:i.vendaAtiva, preco=parseMoney(querLoc?i.aluguel:i.valorVenda);return ativo&&(!tipo||normalizarBuscaV10(i.tipo).includes(tipo))&&(!cidade||normalizarBuscaV10(i.cidade).includes(cidade))&&(!bairros.length||bairros.some(b=>normalizarBuscaV10(i.bairro).includes(b)))&&(!max||!preco||preco<=max)&&(!quartos||Number(i.quartos||0)>=quartos)&&(!vagas||Number(i.vagas||0)>=vagas);});
 }
 function atualizarCompatibilidadeBuscaV10() { const el=document.getElementById('c-busca-compatibilidade');if(!el)return;const fins=Array.from(document.querySelectorAll('.c-finalidade:checked')).map(x=>x.value), lista=imoveisCompativeisV10(perfilBuscaFormularioV10(),fins);el.textContent=lista.length?`${lista.length} imóvel(is) da base parecem compatíveis com esta procura.`:'Nenhum imóvel compatível na base agora. Use a descrição pronta para consultar seus grupos.'; }
 function popularSelectScriptsAtendimentoV10(cliente={}) { const el=document.getElementById('c-script-atendimento');if(!el)return;const lista=state.scriptsAtendimento.filter(s=>s.ativo!==false).sort((a,b)=>(a.etapa===cliente.status?-1:0)-(b.etapa===cliente.status?-1:0)||a.titulo.localeCompare(b.titulo));el.innerHTML='<option value="">— selecione um script —</option>'+lista.map(s=>`<option value="${s.id}">${escHtml(s.codigoCadastro)} · ${escHtml(s.titulo)}${s.etapa?' · '+escHtml(s.etapa):''}</option>`).join(''); }
@@ -4015,11 +4058,12 @@ function abrirModalCliente(id = null) {
   document.getElementById('form-cliente').reset();
   delete document.getElementById('form-cliente').dataset.pessoaId;
   document.getElementById('cliente-id').value = '';
+  limparDuplicidadeCelularV12();
     document.getElementById('modal-cliente-titulo').textContent = 'Nova oportunidade';
   document.querySelectorAll('#radio-qualificacao label').forEach(l => l.classList.remove('selected'));
   toggleCampoConjuge();
   document.getElementById('c-data-cadastro').value = hojeStr();
-  ['c-busca-tipo','c-busca-bairros','c-busca-cidade','c-busca-valor-max','c-busca-quartos','c-busca-pagamento','c-busca-indispensaveis','c-busca-texto-grupo'].forEach(campo=>{const el=document.getElementById(campo);if(el)el.value='';});
+  ['c-busca-tipo','c-busca-bairros','c-busca-cidade','c-busca-valor-max','c-busca-quartos','c-busca-vagas','c-busca-pagamento','c-busca-indispensaveis','c-busca-observacoes','c-busca-texto-grupo'].forEach(campo=>{const el=document.getElementById(campo);if(el)el.value='';});
   document.getElementById('c-busca-cidade').value='Porto Velho/RO';
 
   if (id) {
@@ -4064,8 +4108,8 @@ function abrirModalCliente(id = null) {
     const pb=c.perfilBusca||{};
     document.getElementById('c-busca-tipo').value=pb.tipo||''; document.getElementById('c-busca-bairros').value=pb.bairros||'';
     document.getElementById('c-busca-cidade').value=pb.cidade||''; document.getElementById('c-busca-valor-max').value=pb.valorMax||'';
-    document.getElementById('c-busca-quartos').value=pb.quartos||''; document.getElementById('c-busca-pagamento').value=pb.pagamento||'';
-    document.getElementById('c-busca-indispensaveis').value=pb.indispensaveis||''; document.getElementById('c-busca-texto-grupo').value=pb.textoGrupo||'';
+    document.getElementById('c-busca-quartos').value=pb.quartos||''; document.getElementById('c-busca-vagas').value=pb.vagas||''; document.getElementById('c-busca-pagamento').value=pb.pagamento||'';
+    document.getElementById('c-busca-indispensaveis').value=pb.indispensaveis||''; document.getElementById('c-busca-observacoes').value=pb.observacoesNecessidade||''; document.getElementById('c-busca-texto-grupo').value=pb.textoGrupo||'';
     toggleCampoConjuge();
 
     document.querySelectorAll('.c-finalidade').forEach(cb => {
@@ -4195,8 +4239,8 @@ function sincronizarClienteV5(c) {
     let pb = state.perfisBusca.find(x => x.leadId === c.id);
     if (!pb) { pb = { id:uid(), leadId:c.id, pessoaId:p.id }; state.perfisBusca.push(pb); }
     Object.assign(pb, { pessoaId:p.id, finalidades:[...fins.filter(x => ['Compra','Investimento'].includes(x)), ...(fins.includes('Aluguel') && ehInteressado ? ['Aluguel'] : [])],
-      tipo:perfil.tipo||im.tipo, bairros:perfil.bairros||im.bairro, cidade:perfil.cidade||im.cidade, valorMax:perfil.valorMax||im.valorPedido, quartos:perfil.quartos||im.dormitorios,
-      pagamento:perfil.pagamento||'', indispensaveis:perfil.indispensaveis||'', textoGrupo:perfil.textoGrupo||'', observacoes:perfil.indispensaveis||im.obs });
+      tipo:perfil.tipo||im.tipo, bairros:perfil.bairros||im.bairro, cidade:perfil.cidade||im.cidade, valorMax:perfil.valorMax||im.valorPedido, quartos:perfil.quartos||im.dormitorios, vagas:perfil.vagas||im.vagas||'',
+      pagamento:perfil.pagamento||'', indispensaveis:perfil.indispensaveis||'', observacoesNecessidade:perfil.observacoesNecessidade||'', textoGrupo:perfil.textoGrupo||'', observacoes:perfil.observacoesNecessidade||perfil.indispensaveis||im.obs });
   }
   if (fins.includes('Aluguel') && ehInteressado) {
     let lo = state.locLocatarios.find(x => x.clienteId === c.id) || state.locLocatarios.find(x => x.pessoaId === p.id && !x.clienteId);
@@ -4224,6 +4268,9 @@ function sincronizarClienteV5(c) {
 function salvarCliente() {
   const nome = document.getElementById('c-nome').value.trim();
   if (!nome) { toast('Nome é obrigatório'); return; }
+  const id = document.getElementById('cliente-id').value;
+  const whatsapp = document.getElementById('c-whatsapp').value.trim();
+  const telefone = document.getElementById('c-telefone').value.trim();
   const email = document.getElementById('c-email').value.trim();
   const doc = document.getElementById('c-doc').value.trim();
   const nascimento = document.getElementById('c-nascimento').value;
@@ -4232,8 +4279,10 @@ function salvarCliente() {
   if (!cpfCnpjValido(doc)) { toast('CPF/CNPJ da pessoa inválido.'); return; }
   if (!dataNaoFutura(nascimento)) { toast('A data de nascimento não pode estar no futuro.'); return; }
   if (!numeroEntre(pctComissao, 0, 100)) { toast('A comissão deve ficar entre 0% e 100%.'); return; }
+  const duplicado=verificarDuplicidadeCelularFormularioV12();
+  if(duplicado){exibirDuplicidadeCelularV12(duplicado);return;}
+  limparDuplicidadeCelularV12();
 
-  const id = document.getElementById('cliente-id').value;
   const finalidade = Array.from(document.querySelectorAll('.c-finalidade:checked')).map(cb => cb.value);
   const qualifRadio = document.querySelector('#radio-qualificacao input:checked');
   const qualificacao = qualifRadio ? qualifRadio.value : '';
@@ -4249,8 +4298,8 @@ function salvarCliente() {
     pessoaId: document.getElementById('form-cliente').dataset.pessoaId || undefined,
     nome,
     dataCadastro: document.getElementById('c-data-cadastro').value || hojeStr(),
-    whatsapp: document.getElementById('c-whatsapp').value.trim(),
-    telefone: document.getElementById('c-telefone').value.trim(),
+    whatsapp,
+    telefone,
     email,
     doc,
     rg: document.getElementById('c-rg').value.trim(),
@@ -5131,7 +5180,7 @@ function itensBuscaGlobalV10(valor) {
   const combina=(valores)=>{const texto=normalizarBuscaV10(valores.filter(Boolean).join(' '));const nums=valores.join(' ').replace(/\D/g,'');return texto.includes(q)||(digitos.length>=2&&nums.includes(digitos));};
   const itens=[];
   state.pessoas.forEach(p=>{if(combina([p.codigoCadastro,p.nome,p.doc,p.whatsapp,p.telefone,p.email,...papeisPessoaV5(p)]))itens.push({grupo:'Pessoas',tipo:'pessoa',id:p.id,codigo:p.codigoCadastro,titulo:p.nome,sub:[papeisPessoaV5(p).join(', '),p.whatsapp||p.telefone].filter(Boolean).join(' · ')});});
-  state.clientes.forEach(c=>{const p=pessoaV5(c.pessoaId),pb=c.perfilBusca||{};if(combina([c.codigoCadastro,c.nome,c.whatsapp,c.telefone,c.doc,c.status,c.obs,p?.codigoCadastro,pb.tipo,pb.bairros,pb.cidade,pb.valorMax,pb.textoGrupo]))itens.push({grupo:'Oportunidades',tipo:'oportunidade',id:c.id,codigo:c.codigoCadastro,titulo:c.nome,sub:[c.status,(c.finalidade||[]).join(', '),p?.codigoCadastro].filter(Boolean).join(' · ')});});
+  state.clientes.forEach(c=>{const p=pessoaV5(c.pessoaId),pb=c.perfilBusca||{};if(combina([c.codigoCadastro,c.nome,c.whatsapp,c.telefone,c.doc,c.status,c.obs,p?.codigoCadastro,pb.tipo,pb.bairros,pb.cidade,pb.valorMax,pb.quartos,pb.vagas,pb.pagamento,pb.observacoesNecessidade,pb.textoGrupo]))itens.push({grupo:'Oportunidades',tipo:'oportunidade',id:c.id,codigo:c.codigoCadastro,titulo:c.nome,sub:[c.status,(c.finalidade||[]).join(', '),p?.codigoCadastro].filter(Boolean).join(' · ')});});
   state.imoveis.forEach(i=>{const donos=state.imovelProprietarios.filter(v=>v.imovelId===i.id).map(v=>pessoaV5(v.pessoaId)?.nome);if(combina([i.codigoCadastro,i.codigo,enderecoImovelV5(i),i.tipo,i.matriculaNum,...donos]))itens.push({grupo:'Imóveis',tipo:'imovel',id:i.id,codigo:i.codigoCadastro,titulo:i.codigo||i.tipo||'Imóvel',sub:enderecoImovelV5(i)});});
   state.locContratos.forEach(c=>{const i=imovelV5(c.imovelV5Id),loc=pessoaV5(c.locatarioPessoaId),prop=pessoaV5(c.proprietarioPessoaId);if(combina([c.numero,c.status,i?.codigoCadastro,enderecoImovelV5(i),loc?.nome,prop?.nome]))itens.push({grupo:'Contratos',tipo:'contrato',id:c.id,codigo:c.numero||'Contrato',titulo:enderecoImovelV5(i),sub:[loc?.nome,c.status].filter(Boolean).join(' · ')});});
   state.scriptsAtendimento.filter(s=>s.ativo!==false).forEach(s=>{if(combina([s.codigoCadastro,s.titulo,s.categoria,s.etapa,s.tags,s.texto]))itens.push({grupo:'Scripts',tipo:'script',id:s.id,codigo:s.codigoCadastro,titulo:s.titulo,sub:[s.categoria,s.etapa].filter(Boolean).join(' · ')});});
@@ -5158,6 +5207,15 @@ function renderPesquisaGeralV10(main) {
   main.innerHTML=`<div class="page-header"><div><h2>Pesquisa Geral</h2><small>Localize qualquer cadastro pelo código único, nome, telefone, CPF/CNPJ, endereço ou número.</small></div></div><div class="card"><div class="search-shell"><span class="search-icon">🔎</span><input id="pesquisa-geral-v10" value="${escAttr(q)}" placeholder="Ex.: PES-000123, Maria, 99999-0000, Rua…" oninput="renderBuscaGlobalV10(this.value,'pesquisa-geral-resultados',false)"></div><div id="pesquisa-geral-total" class="entity-meta" style="margin:12px 0"></div><div id="pesquisa-geral-resultados"></div></div>`;
   renderBuscaGlobalV10(q,'pesquisa-geral-resultados',false);
 }
+const filtrosRelatorioProcuraV12={operacao:'',tipo:'',bairro:'',valorMin:'',valorMax:'',quartos:'',prioridade:'',agrupar:false};
+function operacoesProcuraV12(c){return (c.finalidade||[]).filter(x=>['Compra','Aluguel','Investimento'].includes(x)&&!(x==='Aluguel'&&c.papelAluguel==='Locador')).map(x=>x==='Aluguel'?'Locação':x);}
+function dadosRelatorioProcuraV12(){return state.clientes.map(c=>{const p=c.perfilBusca||{},prioridade=scoreComercialV8(c).prioridade||'';return {cliente:c,nome:c.nome,telefone:c.whatsapp||c.telefone||'',status:c.status||'',operacoes:operacoesProcuraV12(c),tipo:p.tipo||'',bairro:p.bairros||'',valorMax:p.valorMax||'',valorNumero:parseMoney(p.valorMax),quartos:p.quartos||'',vagas:p.vagas||'',pagamento:p.pagamento||'',prazo:c.timing||'',prioridade,prioridadeReal:c.prioridadeReal||'',observacoes:p.observacoesNecessidade||p.indispensaveis||c.obs||''};}).filter(r=>r.status==='Procura / Necessidade'||r.operacoes.length||[r.tipo,r.bairro,r.valorMax,r.quartos,r.vagas,r.pagamento,r.observacoes].some(Boolean)).filter(r=>{const f=filtrosRelatorioProcuraV12,tipo=normalizarBuscaV10(r.tipo),bairro=normalizarBuscaV10(r.bairro),min=parseMoney(f.valorMin),max=parseMoney(f.valorMax),quartos=Number(f.quartos)||0;return(!f.operacao||r.operacoes.includes(f.operacao))&&(!f.tipo||tipo.includes(normalizarBuscaV10(f.tipo)))&&(!f.bairro||bairro.includes(normalizarBuscaV10(f.bairro)))&&(!min||!r.valorNumero||r.valorNumero>=min)&&(!max||!r.valorNumero||r.valorNumero<=max)&&(!quartos||Number(r.quartos||0)>=quartos)&&(!f.prioridade||r.prioridade===f.prioridade);}).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));}
+function atualizarFiltroRelatorioProcuraV12(campo,valor,foco=false){if(!(campo in filtrosRelatorioProcuraV12))return;filtrosRelatorioProcuraV12[campo]=campo==='agrupar'?!!valor:valor;render();if(foco)requestAnimationFrame(()=>{const el=document.getElementById(`rp-${campo}`);if(el){el.focus();el.setSelectionRange?.(el.value.length,el.value.length);}});}
+function htmlGruposProcuraV12(lista){const grupos=new Map();lista.forEach(r=>{const chave=[r.operacoes.join(' / ')||'Operação não informada',r.tipo||'Tipo não informado',r.quartos?`${r.quartos} quarto(s)`:'quartos não informados',r.valorMax?`até R$ ${fmtMoney(parseMoney(r.valorMax))}`:'valor a combinar'].join(' | ');if(!grupos.has(chave))grupos.set(chave,[]);grupos.get(chave).push(r);});return `<div class="entity-grid">${[...grupos.entries()].map(([chave,itens])=>`<article class="entity-card"><h3>${escHtml(chave)}</h3><div class="entity-meta">Clientes interessados:</div><p>${itens.map(x=>escHtml(x.nome)).join(', ')}</p><b>Total: ${itens.length} cliente(s)</b></article>`).join('')}</div>`;}
+function renderRelatorioProcuraV12(main){const f=filtrosRelatorioProcuraV12,lista=dadosRelatorioProcuraV12();main.innerHTML=`<div class="page-header"><div><h2>RELATÓRIO PROCURA / NECESSIDADE</h2><small>Quem está procurando o quê? Dados ligados diretamente aos clientes já cadastrados.</small></div><div class="actions no-print"><button class="btn secondary" onclick="imprimirRelatorioProcuraV12()">🖨 Imprimir / PDF</button><button class="btn verde" onclick="exportarRelatorioProcuraCsvV12()">⬇ Exportar CSV</button></div></div><div class="card no-print"><h3>Filtros</h3><div class="filtros"><select id="rp-operacao" onchange="atualizarFiltroRelatorioProcuraV12('operacao',this.value)"><option value="">Compra ou locação</option><option value="Compra" ${f.operacao==='Compra'?'selected':''}>Compra</option><option value="Locação" ${f.operacao==='Locação'?'selected':''}>Locação</option></select><input id="rp-tipo" value="${escAttr(f.tipo)}" placeholder="Tipo de imóvel" oninput="atualizarFiltroRelatorioProcuraV12('tipo',this.value,true)"><input id="rp-bairro" value="${escAttr(f.bairro)}" placeholder="Bairro / região" oninput="atualizarFiltroRelatorioProcuraV12('bairro',this.value,true)"><input id="rp-valorMin" class="money-field" value="${escAttr(f.valorMin)}" placeholder="Valor mínimo" oninput="atualizarFiltroRelatorioProcuraV12('valorMin',this.value,true)"><input id="rp-valorMax" class="money-field" value="${escAttr(f.valorMax)}" placeholder="Valor máximo" oninput="atualizarFiltroRelatorioProcuraV12('valorMax',this.value,true)"><select id="rp-quartos" onchange="atualizarFiltroRelatorioProcuraV12('quartos',this.value)"><option value="">Quartos</option>${[1,2,3,4,5].map(n=>`<option value="${n}" ${String(n)===String(f.quartos)?'selected':''}>${n}+ quartos</option>`).join('')}</select><select id="rp-prioridade" onchange="atualizarFiltroRelatorioProcuraV12('prioridade',this.value)"><option value="">Prioridade</option>${['A','B','C'].map(x=>`<option ${f.prioridade===x?'selected':''}>${x}</option>`).join('')}</select><label style="display:flex;align-items:center;gap:7px;white-space:nowrap"><input id="rp-agrupar" type="checkbox" ${f.agrupar?'checked':''} onchange="atualizarFiltroRelatorioProcuraV12('agrupar',this.checked)"> Agrupar necessidades parecidas</label></div></div><div class="entity-meta" style="margin:12px 0"><b>${lista.length}</b> cliente(s) encontrado(s).</div>${f.agrupar&&lista.length?`<h3 style="margin:14px 0">Necessidades parecidas</h3>${htmlGruposProcuraV12(lista)}`:''}<div class="card"><table><thead><tr><th>Cliente</th><th>Telefone</th><th>Compra / locação</th><th>Tipo</th><th>Bairro / região</th><th>Valor máximo</th><th>Quartos</th><th>Vagas</th><th>Pagamento</th><th>Prazo</th><th>Prioridade</th><th>Observações</th><th class="no-print">Ações</th></tr></thead><tbody>${lista.map(r=>`<tr><td><span class="codigo-chip">${escHtml(r.cliente.codigoCadastro||'')}</span><br><b>${escHtml(r.nome)}</b></td><td>${r.telefone?`<a href="${whatsappLink(r.telefone)}" target="_blank" rel="noopener noreferrer">${escHtml(r.telefone)}</a>`:'—'}</td><td>${escHtml(r.operacoes.join(' / ')||'—')}</td><td>${escHtml(r.tipo||'—')}</td><td>${escHtml(r.bairro||'—')}</td><td>${r.valorNumero?`R$ ${fmtMoney(r.valorNumero)}`:'—'}</td><td>${escHtml(r.quartos||'—')}</td><td>${escHtml(r.vagas||'—')}</td><td>${escHtml(r.pagamento||'—')}</td><td>${escHtml(r.prazo||'—')}</td><td>${r.prioridade?`<b>${escHtml(r.prioridade)}</b>${r.prioridadeReal?`<br><small>${escHtml(r.prioridadeReal)}</small>`:''}`:escHtml(r.prioridadeReal||'—')}</td><td style="white-space:pre-wrap;min-width:190px">${escHtml(r.observacoes||'—')}</td><td class="no-print"><div class="entity-actions"><button class="btn small" onclick="abrirDashboardLead('${r.cliente.id}')">Ver cadastro</button><button class="btn secondary small" onclick="abrirModalCliente('${r.cliente.id}')">Editar</button>${r.telefone?`<a class="btn secondary small" href="${whatsappLink(r.telefone)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>`:''}</div></td></tr>`).join('')||'<tr><td colspan="13">Nenhuma necessidade encontrada com estes filtros.</td></tr>'}</tbody></table></div>`;aplicarMascaras(main);}
+function csvRelatorioProcuraV12(v){return `"${String(v??'').replace(/"/g,'""')}"`;}
+function exportarRelatorioProcuraCsvV12(){const lista=dadosRelatorioProcuraV12(),cab=['Nome do cliente','Telefone/celular','Compra ou locação','Tipo de imóvel','Bairro/região','Valor máximo','Quartos','Vagas','Forma de pagamento','Prazo para resolver','Prioridade','Observações da necessidade'],conteudo=[cab,...lista.map(r=>[r.nome,r.telefone,r.operacoes.join(' / '),r.tipo,r.bairro,r.valorMax,r.quartos,r.vagas,r.pagamento,r.prazo,r.prioridade||r.prioridadeReal,r.observacoes])].map(l=>l.map(csvRelatorioProcuraV12).join(';')).join('\n'),blob=new Blob(['\uFEFF'+conteudo],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`relatorio-procura-necessidade-${hojeStr()}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('CSV exportado.');}
+function imprimirRelatorioProcuraV12(){const lista=dadosRelatorioProcuraV12(),cel=v=>escHtml(v||'—'),tr=r=>`<tr><td>${cel(r.nome)}</td><td>${cel(r.telefone)}</td><td>${cel(r.operacoes.join(' / '))}</td><td>${cel(r.tipo)}</td><td>${cel(r.bairro)}</td><td>${r.valorNumero?'R$ '+fmtMoney(r.valorNumero):'—'}</td><td>${cel(r.quartos)}</td><td>${cel(r.vagas)}</td><td>${cel(r.pagamento)}</td><td>${cel(r.prazo)}</td><td>${cel(r.prioridade||r.prioridadeReal)}</td><td>${cel(r.observacoes)}</td></tr>`,html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório Procura / Necessidade</title><style>body{font-family:Arial,sans-serif;color:#17324d;padding:20px;font-size:11px}h1{font-size:18px;margin:0 0 4px}p{color:#5f7782;margin:0 0 16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #c8dde3;padding:6px;vertical-align:top;text-align:left}th{background:#e3f2f5}@media print{body{padding:0}}</style></head><body><h1>RELATÓRIO PROCURA / NECESSIDADE</h1><p>Gerado em ${new Date().toLocaleString('pt-BR')} · ${lista.length} cliente(s)</p><table><thead><tr><th>Cliente</th><th>Telefone</th><th>Operação</th><th>Tipo</th><th>Bairro</th><th>Valor máximo</th><th>Quartos</th><th>Vagas</th><th>Pagamento</th><th>Prazo</th><th>Prioridade</th><th>Observações</th></tr></thead><tbody>${lista.map(tr).join('')||'<tr><td colspan="12">Nenhuma necessidade encontrada.</td></tr>'}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),250);<\/script></body></html>`,janela=window.open('','_blank');if(!janela)return toast('Permita pop-ups para imprimir o relatório.');janela.document.write(html);janela.document.close();}
 async function copiarTextoV10(texto,mensagem='Texto copiado.') {
   try { await navigator.clipboard.writeText(String(texto||''));toast(mensagem); }
   catch(e) { const area=document.createElement('textarea');area.value=String(texto||'');area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();toast(mensagem); }
@@ -5619,6 +5677,7 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
 });
 document.getElementById('form-cliente')?.addEventListener('submit', e => { e.preventDefault(); salvarCliente(); });
 document.getElementById('form-tarefa')?.addEventListener('submit', e => { e.preventDefault(); salvarTarefa(); });
+['c-whatsapp','c-telefone'].forEach(id=>{const campo=document.getElementById(id);campo?.addEventListener('input',limparDuplicidadeCelularV12);campo?.addEventListener('blur',verificarDuplicidadeCelularFormularioV12);});
 document.addEventListener('click', e => { if(!e.target.closest?.('.global-topbar'))document.getElementById('busca-global-top-resultados')?.classList.remove('show'); });
 
 document.addEventListener('keydown', (e) => {
@@ -5706,6 +5765,8 @@ function executarAutotestes() {
   });
   testar('migração cria banco inicial de scripts', () => normalizarState({schemaVersion:10,clientes:[],tarefas:[]}).scriptsAtendimento.length>=10);
   testar('descrição de busca inclui código e requisitos', () => gerarTextoBuscaGrupoV10({tipo:'Casa',bairros:'Areal',valorMax:'500.000',quartos:'3'},{codigoCadastro:'OP-000001',finalidade:['Compra']}).includes('OP-000001'));
+  testar('celular normaliza formatos brasileiros equivalentes', () => ['(69) 99999-9999','69 99999-9999','69999999999','+55 69 99999-9999'].every(x => normalizarCelularV12(x)==='69999999999'));
+  testar('migração acrescenta vagas e observações da necessidade', () => { const m=normalizarState({schemaVersion:11,clientes:[{id:'c1',nome:'Ana',perfilBusca:{tipo:'Apartamento',indispensaveis:'garagem'}}],tarefas:[]}); return m.clientes[0].perfilBusca.vagas===''&&m.clientes[0].perfilBusca.observacoesNecessidade==='garagem'; });
   const aprovados = testes.filter(t => t.ok).length;
   return { ok: aprovados === testes.length, aprovados, total:testes.length, testes };
 }
