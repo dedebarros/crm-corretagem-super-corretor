@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CRM Imobiliário Local v11.0 — André Barros</title>
+<title>CRM Imobiliário Local v11.1 — André Barros</title>
 <style>
   :root {
     --azul: #006994;
@@ -949,7 +949,7 @@
       <button class="nav-btn" data-page="config"><span class="icon">⚙</span><span>Backup</span></button>
     </nav>
     <div class="footer" id="app-footer">
-      v11.0 · dados locais
+      v11.1 · dados locais
     </div>
   </aside>
   <div class="workspace">
@@ -1651,9 +1651,10 @@
 <script>
 /* ===== VERSÃO & CHANGELOG =====
    Incremente APP_VERSION e adicione uma linha no topo de CHANGELOG a cada alteração. */
-const APP_VERSION = '11.0';
+const APP_VERSION = '11.1';
 const APP_AUTOR = 'André Barros';
 const CHANGELOG = [
+  { v: '11.1', desc: 'Taxas médias de financiamento por banco, consulta ao Banco Central e comparação de cenários.' },
   { v: '11.0', desc: 'CRM de atendimento com Meu dia, follow-up, relatórios e ferramentas comerciais.' },
   { v: '10.2', desc: 'Relatório de Procura / Necessidade com filtros, agrupamento, impressão, CSV e bloqueio de celular duplicado.' },
   { v: '10.1', desc: 'Nova etapa Procura / Necessidade no Kanban e descrição da procura em destaque na abertura da visão 360°.' },
@@ -5544,7 +5545,7 @@ let simuladorV5='financiamento';
 function setSimuladorV5(tipo){simuladorV5=tipo;render();}
 function renderSimuladoresV5(main){main.innerHTML=`<div class="page-header"><div><h2>Simuladores</h2><small>Cálculos comerciais locais para apoiar a conversa com o cliente.</small></div></div><div class="subnav-v5"><button class="btn ${simuladorV5==='financiamento'?'active':'secondary'}" onclick="setSimuladorV5('financiamento')">🏦 Financiamento</button><button class="btn ${simuladorV5==='investimento'?'active':'secondary'}" onclick="setSimuladorV5('investimento')">📈 Investimento</button></div>${simuladorV5==='financiamento'?htmlFinanciamentoV5():htmlInvestimentoV5()}`;setTimeout(()=>simuladorV5==='financiamento'?calcularFinanciamentoV5():calcularInvestimentoV5(),0);aplicarMascaras();}
 function htmlFinanciamentoV5(){return `<div class="card"><div class="form-grid">${fG('Imóvel',`<select id="fv5-imovel">${opcoesImoveisV5('')}</select>`,'two')}${fG('Cliente',`<select id="fv5-pessoa">${opcoesPessoasV5('')}</select>`,'two')}${fG('Valor do imóvel',`<input id="fv5-valor" class="money-field" value="500.000,00" oninput="calcularFinanciamentoV5()">`)}${fG('Entrada',`<input id="fv5-entrada" class="money-field" value="100.000,00" oninput="calcularFinanciamentoV5()">`)}${fG('Taxa anual %',`<input id="fv5-taxa" type="number" step="0.01" value="11.5" oninput="calcularFinanciamentoV5()">`)}${fG('Prazo em meses',`<input id="fv5-meses" type="number" value="360" oninput="calcularFinanciamentoV5()">`)}${fG('Sistema',`<select id="fv5-sistema" onchange="calcularFinanciamentoV5()"><option>PRICE</option><option>SAC</option></select>`)}${fG('Seguro mensal',`<input id="fv5-seguro" class="money-field" value="150,00" oninput="calcularFinanciamentoV5()">`)}${fG('Taxas iniciais',`<input id="fv5-custos" class="money-field" value="0,00" oninput="calcularFinanciamentoV5()">`)}</div><div id="fv5-resultado"></div><div class="actions"><button class="btn verde" onclick="salvarFinanciamentoV5()">Salvar simulação</button></div></div><div class="card"><h3>Simulações salvas</h3>${state.simulacoesFinanciamento.slice(-8).reverse().map(s=>`<div class="owner-row"><span>${fmtDataCurta(String(s.criadoEm||'').slice(0,10))} · ${escHtml(imovelV5(s.imovelId)?enderecoImovelV5(imovelV5(s.imovelId)):'sem imóvel')} · ${s.sistema} · parcela inicial R$ ${fmtMoney(Number(s.parcelaInicial||0))}</span></div>`).join('')||'<div class="entity-meta">Nenhuma simulação salva.</div>'}</div>`;}
-function dadosFinanciamentoV5(){const valor=parseMoney(locVal('fv5-valor')),entrada=parseMoney(locVal('fv5-entrada')),principal=Math.max(0,valor-entrada),taxaAnual=parsePercentual(locVal('fv5-taxa'))/100,meses=Math.max(1,Math.round(parseNumeroBR(locVal('fv5-meses'))||1)),i=Math.pow(1+taxaAnual,1/12)-1,seguro=parseMoney(locVal('fv5-seguro')),custos=parseMoney(locVal('fv5-custos')),sistema=locVal('fv5-sistema');let inicial=0,final=0,juros=0;if(sistema==='SAC'){const a=principal/meses;inicial=a+principal*i+seguro;final=a+a*i+seguro;juros=i*principal*(meses+1)/2;}else{const pmt=i?principal*i/(1-Math.pow(1+i,-meses)):principal/meses;inicial=final=pmt+seguro;juros=pmt*meses-principal;}return{valor,entrada,principal,taxaAnual,meses,i,seguro,custos,sistema,parcelaInicial:inicial,parcelaFinal:final,juros,total:entrada+custos+principal+juros+seguro*meses,renda:inicial/0.30};}
+function dadosFinanciamentoV5(){const valor=parseMoney(locVal('fv5-valor')),entrada=parseMoney(locVal('fv5-entrada')),principal=Math.max(0,valor-entrada),taxaAnual=(Number(locVal('fv5-taxa'))||0)/100,meses=Math.max(1,Math.round(parseNumeroBR(locVal('fv5-meses'))||1)),i=Math.pow(1+taxaAnual,1/12)-1,seguro=parseMoney(locVal('fv5-seguro')),custos=parseMoney(locVal('fv5-custos')),sistema=locVal('fv5-sistema');let inicial=0,final=0,juros=0;if(sistema==='SAC'){const a=principal/meses;inicial=a+principal*i+seguro;final=a+a*i+seguro;juros=i*principal*(meses+1)/2;}else{const pmt=i?principal*i/(1-Math.pow(1+i,-meses)):principal/meses;inicial=final=pmt+seguro;juros=pmt*meses-principal;}return{valor,entrada,principal,taxaAnual,meses,i,seguro,custos,sistema,parcelaInicial:inicial,parcelaFinal:final,juros,total:entrada+custos+principal+juros+seguro*meses,renda:inicial/0.30};}
 function calcularFinanciamentoV5(){const d=dadosFinanciamentoV5(),el=document.getElementById('fv5-resultado');if(!el)return;if(d.entrada>d.valor)return setSafeHTML(el,'<div class="notice">A entrada não pode superar o valor do imóvel.</div>');setSafeHTML(el,`<div class="result-grid"><div class="result-box"><small>Valor financiado</small><b>R$ ${fmtMoney(d.principal)}</b></div><div class="result-box"><small>Parcela inicial</small><b>R$ ${fmtMoney(d.parcelaInicial)}</b></div><div class="result-box"><small>Parcela final</small><b>R$ ${fmtMoney(d.parcelaFinal)}</b></div><div class="result-box"><small>Juros totais</small><b>R$ ${fmtMoney(d.juros)}</b></div><div class="result-box"><small>Custo total estimado</small><b>R$ ${fmtMoney(d.total)}</b></div><div class="result-box"><small>Renda mínima estimada (30%)</small><b>R$ ${fmtMoney(d.renda)}</b></div></div><div class="notice">Estimativa comercial. Bancos aplicam CET, seguros, tarifas e critérios próprios; não é proposta de crédito.</div>`);}
 function salvarFinanciamentoV5(){const d=dadosFinanciamentoV5();if(!d.valor||d.entrada>d.valor)return toast('Revise valor e entrada.');state.simulacoesFinanciamento.push({id:uid(),imovelId:locVal('fv5-imovel'),pessoaId:locVal('fv5-pessoa'),...d,criadoEm:hoje()});salvar(state);render();toast('Simulação de financiamento salva.');}
 function htmlInvestimentoV5(){return `<div class="card"><div class="form-grid">${fG('Imóvel',`<select id="inv5-imovel">${opcoesImoveisV5('')}</select>`,'two')}${fG('Cliente',`<select id="inv5-pessoa">${opcoesPessoasV5('')}</select>`,'two')}${fG('Preço do imóvel',`<input id="inv5-preco" class="money-field" value="500.000,00" oninput="calcularInvestimentoV5()">`)}${fG('Entrada / capital próprio',`<input id="inv5-entrada" class="money-field" value="500.000,00" oninput="calcularInvestimentoV5()">`)}${fG('Custos de aquisição %',`<input id="inv5-custos" type="number" step="0.1" value="5" oninput="calcularInvestimentoV5()">`)}${fG('Reforma',`<input id="inv5-reforma" class="money-field" value="0,00" oninput="calcularInvestimentoV5()">`)}${fG('Aluguel mensal',`<input id="inv5-aluguel" class="money-field" value="3.500,00" oninput="calcularInvestimentoV5()">`)}${fG('Vacância %',`<input id="inv5-vacancia" type="number" value="8" oninput="calcularInvestimentoV5()">`)}${fG('Despesas mensais',`<input id="inv5-despesas" class="money-field" value="500,00" oninput="calcularInvestimentoV5()">`)}${fG('Valorização anual %',`<input id="inv5-valorizacao" type="number" step="0.1" value="6" oninput="calcularInvestimentoV5()">`)}${fG('Horizonte em anos',`<input id="inv5-anos" type="number" value="5" oninput="calcularInvestimentoV5()">`)}</div><div id="inv5-resultado"></div><button class="btn verde" onclick="salvarInvestimentoV5()">Salvar simulação</button></div><div class="card"><h3>Simulações salvas</h3>${state.simulacoesInvestimento.slice(-8).reverse().map(s=>`<div class="owner-row"><span>${fmtDataCurta(String(s.criadoEm||'').slice(0,10))} · ROI ${Number(s.roi||0).toFixed(1)}% · valor futuro R$ ${fmtMoney(Number(s.valorFuturo||0))}</span></div>`).join('')||'<div class="entity-meta">Nenhuma simulação salva.</div>'}</div>`;}
@@ -5783,6 +5784,6 @@ render();
 aplicarMascaras();
 aplicarAcessibilidade(document);
 </script>
-<script src="remodelacao.js"></script>
+<script src="remodelacao.js?v=11.1"></script>
 </body>
 </html>

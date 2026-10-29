@@ -269,14 +269,122 @@
     const painel=document.getElementById('indices-v11');if(painel)painel.innerHTML=painelIndices();
     toast(atualizados===SERIES_INDICES.length?'Índices atualizados.':atualizados?'Atualização parcial; confira as datas.':'Sem conexão com a fonte; confira a data dos últimos valores.');
   }
+
+  const MODALIDADES_BANCARIAS = {
+    mercado_tr:'Financiamento imobiliário com taxas de mercado - Pós-fixado referenciado em TR',
+    regulado_tr:'Financiamento imobiliário com taxas reguladas - Pós-fixado referenciado em TR'
+  };
+  const URL_TAXAS_BCB='https://olinda.bcb.gov.br/olinda/servico/taxaJuros/versao/v2/odata/TaxasJurosMensalPorMes';
+  let taxasBancarias=null, modalidadeBancaria='mercado_tr', referenciaSelecionada=null, comparacaoBancaria=false;
+  try { taxasBancarias=JSON.parse(localStorage.getItem('crm_taxas_bancos_v11')||'null'); } catch(e) {}
+  const taxaBR=n=>Number(n).toFixed(2).replace('.',',');
+  const nomeBuscaBanco=n=>normalizarBuscaV10(n).replace(/\bbco\b/g,'banco');
+  function validarGrupoBancario(grupo,chave) {
+    if(!grupo || grupo.modalidade!==MODALIDADES_BANCARIAS[chave] || !/^\d{4}-(0[1-9]|1[0-2])$/.test(grupo.competencia||'') || grupo.competencia>competenciaAnterior(1) || !Array.isArray(grupo.bancos))return null;
+    const bancos=grupo.bancos.filter(b=>typeof b.instituicao==='string' && b.instituicao.trim() && b.taxaAnual!==null && b.taxaAnual!=='' && b.taxaAnual!==undefined && Number.isFinite(Number(b.taxaAnual)) && Number(b.taxaAnual)>=0 && Number(b.taxaAnual)<1000).map(b=>({instituicao:String(b.instituicao),cnpj8:String(b.cnpj8||''),taxaAnual:Number(b.taxaAnual),taxaMensal:Number(b.taxaMensal)}));
+    if(!bancos.length)return null;
+    return {modalidade:grupo.modalidade,competencia:grupo.competencia,bancos,consultadoEm:grupo.consultadoEm||grupo.atualizadoEm||null};
+  }
+  function obterGrupoBancario(chave) { return validarGrupoBancario(taxasBancarias?.modalidades?.[chave],chave); }
+  function painelTaxasBancos() {
+    const grupo=obterGrupoBancario(modalidadeBancaria), bancos=grupo?.bancos||[];
+    const consulta=grupo?.consultadoEm ? new Date(grupo.consultadoEm).toLocaleString('pt-BR') : taxasBancarias?.atualizadoEm ? new Date(taxasBancarias.atualizadoEm).toLocaleString('pt-BR') : '';
+    const data=grupo ? grupo.competencia.split('-').reverse().join('/') : 'indisponível';
+    return `<div class="card"><h3>Comparar taxas de bancos</h3><p class="entity-meta">Médias mensais de operações contratadas por pessoas físicas, publicadas pelo Banco Central. Não são ofertas personalizadas nem substituem o CET da proposta. A simulação abaixo não projeta a TR. As médias podem incluir encargos; somar custos separados pode repetir valores.</p><div class="filtros"><label>Modalidade <select id="tb-modalidade" data-crm-filtro="taxa-modalidade"><option value="mercado_tr" ${modalidadeBancaria==='mercado_tr'?'selected':''}>Mercado + TR</option><option value="regulado_tr" ${modalidadeBancaria==='regulado_tr'?'selected':''}>Regulada + TR</option></select></label><input id="tb-busca" placeholder="Pesquisar banco" aria-label="Pesquisar banco"> ${acao('atualizar-taxas-bancos','','Buscar e atualizar taxas')} ${acao('comparar-taxas-bancos','','Comparar parcelas')}</div><div class="entity-meta">Fonte: <a href="https://www.bcb.gov.br/estatisticas/txjuros?swcfpc=1" target="_blank" rel="noopener noreferrer">Banco Central</a> · competência: ${escHtml(data)}${consulta?' · consulta: '+escHtml(consulta):''}. ${grupo?'Os bancos não informados no período não aparecem.':'Consulte as taxas para carregar a tabela.'}</div><div style="overflow:auto"><table><thead><tr><th>Banco</th><th>Taxa média anual</th><th>Modalidade</th><th>Ação</th></tr></thead><tbody>${bancos.map((b,i)=>`<tr data-banco-nome="${escAttr(nomeBuscaBanco(b.instituicao))}"><td>${escHtml(b.instituicao)}</td><td>${taxaBR(b.taxaAnual)}% ao ano</td><td>${modalidadeBancaria==='mercado_tr'?'Mercado + TR':'Regulada + TR'}</td><td>${acao('usar-taxa-banco',String(i),'Usar na simulação')}</td></tr>`).join('')||'<tr><td colspan="4">Nenhuma taxa disponível para esta modalidade.</td></tr>'}</tbody></table></div><div id="tb-comparacao"></div></div>`;
+  }
+  function redesenharTaxasBancos() {
+    const el=document.getElementById('taxas-bancos-v11'); if(!el)return;
+    const pesquisa=document.getElementById('tb-busca')?.value||'';
+    el.innerHTML=painelTaxasBancos();
+    const campo=document.getElementById('tb-busca');if(campo){campo.value=pesquisa;filtrarBancos(pesquisa);}
+    if(comparacaoBancaria)compararBancos();
+  }
+  function filtrarBancos(q) {
+    const termo=nomeBuscaBanco(q);
+    document.querySelectorAll('#taxas-bancos-v11 [data-banco-nome]').forEach(tr=>{tr.hidden=!tr.dataset.bancoNome.includes(termo);});
+  }
+  function competenciaAnterior(offset) {
+    const hoje=new Date(),data=new Date(hoje.getFullYear(),hoje.getMonth()-offset,1);
+    return data.getFullYear()+'-'+String(data.getMonth()+1).padStart(2,'0');
+  }
+  async function consultarModalidade(chave) {
+    for(let offset=1;offset<=12;offset++){
+      const competencia=competenciaAnterior(offset), filtro=`anoMes eq '${competencia}' and Modalidade eq '${MODALIDADES_BANCARIAS[chave]}'`;
+      const params=new URLSearchParams({'$format':'json','$top':'1000','$filter':filtro});
+      const opcoes=typeof AbortSignal!=='undefined' && typeof AbortSignal.timeout==='function'?{signal:AbortSignal.timeout(15000)}:{};
+      const resposta=await fetch(URL_TAXAS_BCB+'?'+params.toString().replace(/\+/g,'%20'),opcoes);
+      if(!resposta.ok)throw new Error('Banco Central indisponível');
+      const resultado=await resposta.json();
+      if(!Array.isArray(resultado.value))throw new Error('Resposta inesperada');
+      if(resultado['@odata.nextLink'])throw new Error('A resposta exige paginação; tabela anterior preservada');
+      const bancos=resultado.value.filter(x=>x.anoMes===competencia && x.Modalidade===MODALIDADES_BANCARIAS[chave]).map(x=>({instituicao:x.InstituicaoFinanceira,cnpj8:x.cnpj8,taxaAnual:x.TaxaJurosAoAno,taxaMensal:x.TaxaJurosAoMes}));
+      const grupo=validarGrupoBancario({modalidade:MODALIDADES_BANCARIAS[chave],competencia,bancos,consultadoEm:new Date().toISOString()},chave);
+      if(grupo)return grupo;
+    }
+    throw new Error('Nenhum dado recente para a modalidade');
+  }
+  async function carregarTabelaPublica() {
+    try {
+      const r=await fetch('taxas-bancarias.json',{cache:'no-cache'});if(!r.ok)return false;
+      const arquivo=await r.json(),modalidades={...(taxasBancarias?.modalidades||{})}; let adicionados=0;
+      for(const chave of Object.keys(MODALIDADES_BANCARIAS)){
+        const novo=validarGrupoBancario(arquivo?.modalidades?.[chave],chave),atual=validarGrupoBancario(modalidades[chave],chave);
+        if(novo&&(!atual||novo.competencia>atual.competencia||(novo.competencia===atual.competencia && String(novo.consultadoEm||arquivo.atualizadoEm||'')>String(atual.consultadoEm||taxasBancarias?.atualizadoEm||'')))){modalidades[chave]=novo;adicionados++;}
+      }
+      if(adicionados){taxasBancarias={modalidades,atualizadoEm:arquivo.atualizadoEm};redesenharTaxasBancos();}
+      return adicionados>0;
+    }catch(e){return false;}
+  }
+  async function atualizarTaxasBancarias() {
+    const botao=document.querySelector('[data-crm-acao="atualizar-taxas-bancos"]');if(botao){botao.disabled=true;botao.textContent='Consultando Banco Central…';}
+    const chaves=Object.keys(MODALIDADES_BANCARIAS),respostas=await Promise.allSettled(chaves.map(consultarModalidade));
+    const modalidades={...(taxasBancarias?.modalidades||{})};let sucesso=0;
+    respostas.forEach((r,i)=>{if(r.status==='fulfilled'){modalidades[chaves[i]]=r.value;sucesso++;}});
+    if(sucesso){taxasBancarias={modalidades,atualizadoEm:new Date().toISOString()};try{localStorage.setItem('crm_taxas_bancos_v11',JSON.stringify(taxasBancarias));}catch(e){}}
+    if(sucesso<chaves.length)await carregarTabelaPublica();
+    redesenharTaxasBancos();
+    toast(sucesso===chaves.length?'Taxas atualizadas conforme os últimos dados publicados.':sucesso?'Atualização parcial; confira cada competência.':'Consulta indisponível. A última tabela disponível foi preservada.');
+  }
+  function usarTaxaBanco(indice) {
+    const grupo=obterGrupoBancario(modalidadeBancaria),banco=grupo?.bancos[Number(indice)],campo=document.getElementById('fv5-taxa');if(!banco||!campo)return;
+    const aplicada=Number(banco.taxaAnual).toFixed(2);
+    campo.value=aplicada;
+    referenciaSelecionada={fonte:'Banco Central',instituicao:banco.instituicao,cnpj8:banco.cnpj8,modalidade:grupo.modalidade,competencia:grupo.competencia,consultadoEm:grupo.consultadoEm,indexador:'TR',taxaOriginal:banco.taxaAnual,taxaAplicada:Number(aplicada)};
+    atualizarReferenciaEscolhida();calcularFinanciamentoV5();
+    document.getElementById('fv5-resultado')?.scrollIntoView({behavior:'smooth',block:'center'});
+  }
+  function atualizarReferenciaEscolhida() {
+    const el=document.getElementById('fv5-referencia-banco');if(!el)return;
+    el.textContent=referenciaSelecionada ? `Referência: ${referenciaSelecionada.instituicao} · ${referenciaSelecionada.competencia} · ${referenciaSelecionada.modalidade}. Taxa arredondada para duas casas; a TR não é projetada.` : 'Taxa informada manualmente; confirme as condições com o banco.';
+  }
+  function compararBancos() {
+    const area=document.getElementById('tb-comparacao'),grupo=obterGrupoBancario(modalidadeBancaria),campo=document.getElementById('fv5-taxa');if(!area||!campo)return;
+    const anterior=campo.value, busca=nomeBuscaBanco(document.getElementById('tb-busca')?.value||'');
+    const bancos=(grupo?.bancos||[]).filter(x=>nomeBuscaBanco(x.instituicao).includes(busca));
+    const linhas=bancos.map(b=>{campo.value=Number(b.taxaAnual).toFixed(2);const d=dadosFinanciamentoV5();return {b,d};});campo.value=anterior;
+    if(linhas.some(x=>x.d.valor<=0||x.d.entrada<0||x.d.entrada>x.d.valor||x.d.seguro<0||x.d.custos<0)){area.innerHTML='<div class="notice">Confira o valor do imóvel, a entrada e os custos antes de comparar.</div>';return;}
+    area.innerHTML=`<div class="notice">Mesma entrada, prazo, seguro e sistema da simulação. Valores indicativos: não incluem projeção de TR e não são propostas nem CET.</div><table><thead><tr><th>Banco</th><th>Taxa média anual</th><th>Parcela inicial estimada</th><th>Parcela final estimada</th><th>Total estimado</th></tr></thead><tbody>${linhas.map(({b,d})=>`<tr><td>${escHtml(b.instituicao)}</td><td>${taxaBR(b.taxaAnual)}%</td><td>${moeda(d.parcelaInicial)}</td><td>${moeda(d.parcelaFinal)}</td><td>${moeda(d.total)}</td></tr>`).join('')||'<tr><td colspan="5">Nenhum banco encontrado.</td></tr>'}</tbody></table>`;
+  }
   renderSimuladoresV5=function(main) {
+    referenciaSelecionada=null;comparacaoBancaria=false;
     antigoSimulador(main);
     main.insertAdjacentHTML('afterbegin','<div id="indices-v11">'+painelIndices()+'</div>');
     const financiamento=document.getElementById('fv5-resultado');
     if(financiamento) {
-      financiamento.insertAdjacentHTML('beforebegin',`<div class="notice">A taxa anual é uma estimativa informada por você. TR, IPCA e outros indexadores podem alterar parcelas e saldo; consulte o banco para o CET e condições reais.</div><div class="actions">${acao('copiar-simulacao','','Copiar resumo')} ${acao('imprimir-simulacao','','Imprimir / PDF')}</div>`);
+      financiamento.insertAdjacentHTML('beforebegin',`<div id="taxas-bancos-v11">${painelTaxasBancos()}</div><div class="form-grid">${fG('Banco da proposta (opcional)',fInput('fv5-banco-proposta',''),'two')}${fG('Indexador da proposta',`<select id="fv5-indexador"><option value="">Não informado</option><option>TR</option><option>IPCA</option><option>CDI</option><option>Prefixado</option></select>`)}${fG('CET anual da proposta (%)',fInput('fv5-cet','',{percent:true}))}${fG('Data da proposta',fInput('fv5-data-proposta','',{type:'date'}))}</div><div id="fv5-referencia-banco" class="entity-meta"></div><div class="notice">O CET é apenas registrado; não é usado como taxa de juros no cálculo. A simulação não projeta a TR, IPCA ou outros indexadores e não representa proposta bancária.</div><div class="actions">${acao('copiar-simulacao','','Copiar resumo')} ${acao('imprimir-simulacao','','Imprimir / PDF')}</div>`);
+      atualizarReferenciaEscolhida();
+      const taxa=document.getElementById('fv5-taxa');
+      taxa?.addEventListener('input',()=>{referenciaSelecionada=null;atualizarReferenciaEscolhida();});
+      ['fv5-valor','fv5-entrada','fv5-meses','fv5-seguro','fv5-custos','fv5-sistema'].forEach(id=>{const el=document.getElementById(id);el?.addEventListener('input',()=>{if(comparacaoBancaria)compararBancos();});el?.addEventListener('change',()=>{if(comparacaoBancaria)compararBancos();});});
       const imovel=document.getElementById('fv5-imovel');
       imovel?.addEventListener('change',()=>{const i=imovelV5(imovel.value);if(i?.valorVenda){document.getElementById('fv5-valor').value=i.valorVenda;calcularFinanciamentoV5();}});
+      const salvos=financiamento.closest('.card')?.nextElementSibling;
+      salvos?.querySelectorAll('.owner-row').forEach((row,i)=>{
+        const s=state.simulacoesFinanciamento.slice(-8).reverse()[i];if(!s)return;
+        const detalhes=[s.propostaBanco,s.indexador?'Indexador: '+s.indexador:'',s.propostaCET?'CET informado: '+s.propostaCET+'%':'',s.propostaData?'Proposta: '+fmtDataCurta(s.propostaData):'',s.referenciaBanco?'Média BCB '+s.referenciaBanco.competencia+' · '+s.referenciaBanco.modalidade:''].filter(Boolean);
+        if(detalhes.length)row.insertAdjacentHTML('beforeend',`<small class="entity-meta">${escHtml(detalhes.join(' · '))}</small>`);
+      });
+      carregarTabelaPublica();
     }
     const investimento=document.getElementById('inv5-resultado');
     if(investimento) {
@@ -287,8 +395,12 @@
     if(!indicesV11?.atualizadoEm || Date.now()-new Date(indicesV11.atualizadoEm).getTime()>86400000) atualizarIndices();
   };
   calcularFinanciamentoV5=function() {
+    const campoTaxa=document.getElementById('fv5-taxa'),el=document.getElementById('fv5-resultado');
+    if(!campoTaxa||!el)return;
+    const valor=parseMoney(locVal('fv5-valor')),entrada=parseMoney(locVal('fv5-entrada')),meses=Number(locVal('fv5-meses')),taxa=Number(campoTaxa.value),seguro=parseMoney(locVal('fv5-seguro')),custos=parseMoney(locVal('fv5-custos'));
+    if(valor<=0||entrada<0||entrada>valor||!campoTaxa.value.trim()||!Number.isFinite(taxa)||taxa<0||!Number.isInteger(meses)||meses<1||seguro<0||custos<0){setSafeHTML(el,'<div class="notice">Confira valor, entrada, taxa, prazo e custos antes de simular.</div>');return;}
     antigoCalculoFinanciamento();
-    const el=document.getElementById('fv5-resultado'), seletor=document.getElementById('fv5-sistema');
+    const seletor=document.getElementById('fv5-sistema');
     if(!el||!seletor)return;
     const escolhido=seletor.value, atual=dadosFinanciamentoV5();
     if(atual.entrada>atual.valor)return;
@@ -314,8 +426,13 @@
     const comparacao=ref && Number.isFinite(taxaRef)?`<div class="notice">Referência ${ref==='selic'?'Meta Selic':'CDI anualizado'}: capital projetado em ${d.anos} ano(s) = ${moeda(d.capital*Math.pow(1+taxaRef,d.anos))}. Supõe índice constante; não inclui impostos, custos ou mudanças futuras. Dado de ${escHtml(indice.data)}.</div>`:ref?'<div class="notice">Referência indisponível. Atualize os índices.</div>':'';
     setSafeHTML(el,`<div class="result-grid"><div class="result-box"><small>Renda líquida mensal antes do financiamento</small><b>${moeda(d.liquidoMes)}</b></div><div class="result-box"><small>Parcela estimada</small><b>${moeda(d.parcela)}</b></div><div class="result-box"><small>Saldo devedor no período</small><b>${moeda(d.saldo)}</b></div><div class="result-box"><small>Valor futuro estimado</small><b>${moeda(d.valorFuturo)}</b></div><div class="result-box"><small>Retorno no período</small><b>${d.roi.toFixed(2)}%</b></div><div class="result-box"><small>Retorno anual sobre capital</small><b>${d.cash.toFixed(2)}%</b></div></div>${comparacao}<div class="notice">Estimativa com parcelas Price constantes e projeções informadas. Não inclui impostos de venda, indexadores variáveis ou garantia de renda e valorização.</div>`);
   };
-  const salvarFinanciamentoAnterior=salvarFinanciamentoV5;
-  salvarFinanciamentoV5=function(){const antes=state.simulacoesFinanciamento.length;salvarFinanciamentoAnterior();if(state.simulacoesFinanciamento.length>antes){const item=state.simulacoesFinanciamento.at(-1);item.indicesReferencia=indicesV11?JSON.parse(JSON.stringify(indicesV11)):null;salvar(state,{silencioso:true});}};
+  salvarFinanciamentoV5=function(){
+    const d=dadosFinanciamentoV5(),taxa=Number(locVal('fv5-taxa')),cet=locVal('fv5-cet');
+    if(!d.valor||d.entrada<0||d.entrada>d.valor||!locVal('fv5-taxa')||!Number.isFinite(taxa)||taxa<0||!Number.isInteger(Number(locVal('fv5-meses')))||Number(locVal('fv5-meses'))<1||d.seguro<0||d.custos<0)return toast('Revise valor, entrada, taxa, prazo e custos.');
+    if(cet && (parsePercentual(cet)<0 || parsePercentual(cet)>1000))return toast('Confira o CET informado.');
+    state.simulacoesFinanciamento.push({id:uid(),imovelId:locVal('fv5-imovel'),pessoaId:locVal('fv5-pessoa'),...d,propostaBanco:locVal('fv5-banco-proposta'),propostaCET:cet,propostaData:locVal('fv5-data-proposta'),indexador:locVal('fv5-indexador'),referenciaBanco:referenciaSelecionada?{...referenciaSelecionada}:null,indicesReferencia:indicesV11?JSON.parse(JSON.stringify(indicesV11)):null,criadoEm:hoje()});
+    if(!salvar(state))return;render();toast('Simulação de financiamento salva.');
+  };
   salvarInvestimentoV5=function(){const d=dadosInvestimentoV5();if(!d.preco||d.incompleto)return toast('Confira os dados da simulação.');state.simulacoesInvestimento.push({id:uid(),imovelId:locVal('inv5-imovel'),pessoaId:locVal('inv5-pessoa'),...d,referencia:locVal('inv5-referencia'),indicesReferencia:indicesV11?JSON.parse(JSON.stringify(indicesV11)):null,criadoEm:hoje()});if(!salvar(state))return;render();toast('Simulação de investimento salva.');};
 
   document.addEventListener('click', e=>{
@@ -337,6 +454,9 @@
     else if(cmd==='receber-comissao')receberComissao(id);
     else if(cmd==='comissao-cliente')abrirFormComissaoV5('',id);
     else if(cmd==='atualizar-indices')atualizarIndices();
+    else if(cmd==='atualizar-taxas-bancos')atualizarTaxasBancarias();
+    else if(cmd==='usar-taxa-banco')usarTaxaBanco(id);
+    else if(cmd==='comparar-taxas-bancos'){comparacaoBancaria=true;compararBancos();}
     else if(cmd==='copiar-simulacao')copiarTextoV10(resumoSimulacao(),'Resumo copiado.');
     else if(cmd==='imprimir-simulacao'){
       const janela=window.open('','_blank');
@@ -350,12 +470,17 @@
   });
   function resumoSimulacao(){
     const financiamento=!!document.getElementById('fv5-resultado');
-    const campos=financiamento?[['Valor do imóvel','fv5-valor'],['Entrada','fv5-entrada'],['Taxa anual (%)','fv5-taxa'],['Prazo em meses','fv5-meses'],['Sistema','fv5-sistema'],['Seguro mensal','fv5-seguro'],['Taxas iniciais','fv5-custos']]:[['Valor do imóvel','inv5-preco'],['Capital próprio','inv5-entrada'],['Aluguel mensal','inv5-aluguel'],['Horizonte em anos','inv5-anos'],['Taxa anual do financiamento','inv5-juros-fin'],['Prazo do financiamento','inv5-prazo-fin']];
+    const campos=financiamento?[['Banco','fv5-banco-proposta'],['Indexador','fv5-indexador'],['CET informado (%)','fv5-cet'],['Data da proposta','fv5-data-proposta'],['Valor do imóvel','fv5-valor'],['Entrada','fv5-entrada'],['Taxa anual (%)','fv5-taxa'],['Prazo em meses','fv5-meses'],['Sistema','fv5-sistema'],['Seguro mensal','fv5-seguro'],['Taxas iniciais','fv5-custos']]:[['Valor do imóvel','inv5-preco'],['Capital próprio','inv5-entrada'],['Aluguel mensal','inv5-aluguel'],['Horizonte em anos','inv5-anos'],['Taxa anual do financiamento','inv5-juros-fin'],['Prazo do financiamento','inv5-prazo-fin']];
     const linhas=campos.map(([label,id])=>label+': '+(document.getElementById(id)?.value||'—'));
     const el=document.getElementById('fv5-resultado')||document.getElementById('inv5-resultado');
-    return (financiamento?'SIMULAÇÃO DE FINANCIAMENTO':'SIMULAÇÃO DE INVESTIMENTO')+'\n'+linhas.join('\n')+'\n\n'+(el?.innerText||'Sem resultado.');
+    const referencia=financiamento && referenciaSelecionada ? '\nTaxa de referência: '+referenciaSelecionada.instituicao+' · '+referenciaSelecionada.competencia+' · '+referenciaSelecionada.modalidade+' · Banco Central. TR não projetada.' : '';
+    return (financiamento?'SIMULAÇÃO DE FINANCIAMENTO':'SIMULAÇÃO DE INVESTIMENTO')+'\n'+linhas.join('\n')+referencia+'\n\n'+(el?.innerText||'Sem resultado.');
   }
-  document.addEventListener('change', e=>{if(e.target.dataset.crmFiltro==='acompanhamento'){filtroAcompanhamento=e.target.value;render();}});
+  document.addEventListener('change', e=>{
+    if(e.target.dataset.crmFiltro==='acompanhamento'){filtroAcompanhamento=e.target.value;render();}
+    else if(e.target.dataset.crmFiltro==='taxa-modalidade' && MODALIDADES_BANCARIAS[e.target.value]){modalidadeBancaria=e.target.value;comparacaoBancaria=false;redesenharTaxasBancos();}
+  });
+  document.addEventListener('input',e=>{if(e.target.id==='tb-busca'){filtrarBancos(e.target.value);if(comparacaoBancaria)compararBancos();}});
   ['c-etapa-locacao','c-proposta-enviada-em'].forEach(id=>{const campo=document.getElementById(id);if(campo?.closest('.form-group'))campo.closest('.form-group').style.display='none';});
   render();
 })();

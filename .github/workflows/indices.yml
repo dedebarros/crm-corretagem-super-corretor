@@ -12,7 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Consultar dados públicos do Banco Central
+        id: indices
+        continue-on-error: true
         run: python3 scripts/atualizar_indices.py
+      - name: Consultar taxas de financiamento por banco
+        id: taxas
+        continue-on-error: true
+        run: python3 scripts/atualizar_taxas_bancarias.py
       - name: Publicar valores atualizados
         env:
           GH_TOKEN: ${{ github.token }}
@@ -20,8 +26,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add indices.json
+          if [ -f taxas-bancarias.json ]; then git add taxas-bancarias.json; fi
           if ! git diff --cached --quiet; then
             git commit -m "Atualiza índices econômicos públicos"
             git push
             gh api --method POST "repos/${{ github.repository }}/pages/builds"
           fi
+      - name: Informar eventual falha de consulta
+        if: steps.indices.outcome == 'failure' || steps.taxas.outcome == 'failure'
+        run: exit 1
