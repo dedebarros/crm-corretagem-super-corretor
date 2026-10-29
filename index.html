@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CRM Imobiliário Local v10.2 — André Barros</title>
+<title>CRM Imobiliário Local v11.0 — André Barros</title>
 <style>
   :root {
     --azul: #006994;
@@ -936,25 +936,20 @@
       <span class="sub">André Barros</span>
     </div>
     <nav class="nav">
-      <button class="nav-btn active" data-page="hoje"><span class="icon">⚡</span><span>Hoje</span></button>
+      <button class="nav-btn active" data-page="hoje"><span class="icon">⚡</span><span>Meu dia</span></button>
       <button class="nav-btn" data-page="pesquisa"><span class="icon">🔎</span><span>Pesquisa Geral</span></button>
-      <button class="nav-btn" data-page="locacao"><span class="icon">🏠</span><span>Locação</span></button>
-      <button class="nav-btn" data-page="clientes"><span class="icon">🎯</span><span>Oportunidades</span></button>
-      <button class="nav-btn" data-page="pessoas"><span class="icon">👥</span><span>Pessoas</span></button>
+      <button class="nav-btn" data-page="clientes"><span class="icon">👥</span><span>Clientes e atendimentos</span></button>
       <button class="nav-btn" data-page="imoveis-v5"><span class="icon">🏢</span><span>Imóveis</span></button>
       <button class="nav-btn" data-page="kanban"><span class="icon">📋</span><span>Pipeline</span></button>
-      <button class="nav-btn" data-page="relatorio-procura"><span class="icon">🧾</span><span>Relatório Procura / Necessidade</span></button>
+      <button class="nav-btn" data-page="relatorio-procura"><span class="icon">🧾</span><span>Relatórios</span></button>
       <button class="nav-btn" data-page="tarefas"><span class="icon">✓</span><span>Follow-up / Tarefas</span></button>
       <button class="nav-btn" data-page="scripts"><span class="icon">💬</span><span>Scripts</span></button>
-      <button class="nav-btn" data-page="dashboard"><span class="icon">📊</span><span>Indicadores</span></button>
-      <button class="nav-btn" data-page="contratos-v5"><span class="icon">📄</span><span>Contratos</span></button>
       <button class="nav-btn" data-page="comissoes"><span class="icon">💰</span><span>Comissões</span></button>
-      <button class="nav-btn" data-page="avaliacoes-v5"><span class="icon">📐</span><span>Avaliações AVP</span></button>
       <button class="nav-btn" data-page="simuladores"><span class="icon">🧮</span><span>Simuladores</span></button>
       <button class="nav-btn" data-page="config"><span class="icon">⚙</span><span>Backup</span></button>
     </nav>
     <div class="footer" id="app-footer">
-      v10.2 · dados locais
+      v11.0 · dados locais
     </div>
   </aside>
   <div class="workspace">
@@ -1627,6 +1622,7 @@
         <label>Descreva o contato / atualização</label>
         <textarea id="int-texto" style="width:100%; min-height: 100px; padding: 9px 12px; border: 1px solid var(--borda); border-radius: 6px; font-family: inherit; font-size: 13px;"></textarea>
       </div>
+      <div class="form-grid"><div class="form-group"><label>Resultado do contato</label><select id="int-resultado"><option value="">Não informado</option><option>Aguardando cliente</option><option>Agendado</option><option>Sem resposta</option><option>Concluído</option></select></div><div class="form-group"><label>Próxima ação</label><input id="int-proxima-acao" placeholder="Ex.: enviar opções"></div><div class="form-group"><label>Data do retorno</label><input id="int-proxima-data" type="date"></div><div class="form-group"><label>Hora</label><input id="int-proxima-hora" type="time"></div></div>
     </div>
     <div class="modal-footer">
       <button class="btn secondary" onclick="fecharModal('modal-interacao')">Cancelar</button>
@@ -1655,9 +1651,10 @@
 <script>
 /* ===== VERSÃO & CHANGELOG =====
    Incremente APP_VERSION e adicione uma linha no topo de CHANGELOG a cada alteração. */
-const APP_VERSION = '10.2';
+const APP_VERSION = '11.0';
 const APP_AUTOR = 'André Barros';
 const CHANGELOG = [
+  { v: '11.0', desc: 'CRM de atendimento com Meu dia, follow-up, relatórios e ferramentas comerciais.' },
   { v: '10.2', desc: 'Relatório de Procura / Necessidade com filtros, agrupamento, impressão, CSV e bloqueio de celular duplicado.' },
   { v: '10.1', desc: 'Nova etapa Procura / Necessidade no Kanban e descrição da procura em destaque na abertura da visão 360°.' },
   { v: '10.0', desc: 'Pesquisa geral em todas as telas, códigos públicos permanentes, biblioteca de scripts e perfil de busca com texto pronto para grupos.' },
@@ -4256,9 +4253,12 @@ function sincronizarClienteV5(c) {
   if (c.papelAluguel && pend) pend.resolvida = true;
   const neg = c.negocio || {}, previsto = parseMoney(neg.comissaoValor) || parseMoney(neg.valorVenda) * parsePercentual(neg.comissaoPct) / 100;
   if (previsto > 0) {
-    let co = state.comissoes.find(x => x.legacyClienteId === c.id);
+    let co = state.comissoes.find(x => x.legacyClienteId === c.id || x.clienteId === c.id);
     if (!co) { co = { id:uid(), legacyClienteId:c.id, criadoEm:hoje() }; state.comissoes.push(co); }
-    Object.assign(co, { pessoaId:p.id, imovelId:c.imovelId || '', tipo:fins.includes('Aluguel') ? 'Locação' : 'Venda', descricao:`Comissão · ${c.nome}`,
+    if (co.valorBruto) {
+      co.pessoaId = p.id;
+      if (!co.imovelId && c.imovelId) co.imovelId = c.imovelId;
+    } else Object.assign(co, { pessoaId:p.id, imovelId:c.imovelId || '', tipo:fins.includes('Aluguel') ? 'Locação' : 'Venda', descricao:`Comissão · ${c.nome}`,
       valorNegocio:neg.valorVenda || im.valorPedido || '', percentual:neg.comissaoPct || '', valorPrevisto:fmtMoney(previsto),
       valorRecebido:neg.statusComissao?.includes('Recebida integral') ? fmtMoney(previsto) : co.valorRecebido || '',
       vencimento:neg.dataFechamento || '', status:neg.statusComissao || 'Prevista', observacoes:neg.obs || '' });
@@ -5783,5 +5783,6 @@ render();
 aplicarMascaras();
 aplicarAcessibilidade(document);
 </script>
+<script src="remodelacao.js"></script>
 </body>
 </html>
