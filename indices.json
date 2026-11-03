@@ -1,7 +1,7 @@
 {
   "dados": {
     "selic": {
-      "data": "02/11/2026",
+      "data": "03/11/2026",
       "valor": "13.75",
       "fonte": "Banco Central"
     },
@@ -16,10 +16,10 @@
       "fonte": "Banco Central"
     },
     "tr": {
-      "data": "29/10/2026",
-      "valor": "0.1500",
+      "data": "30/10/2026",
+      "valor": "0.1183",
       "fonte": "Banco Central"
     }
   },
-  "atualizadoEm": "2026-11-02T20:51:12.821993+00:00"
+  "atualizadoEm": "2026-11-03T18:34:03.096076+00:00"
 }
