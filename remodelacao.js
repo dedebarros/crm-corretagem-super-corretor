@@ -12,11 +12,20 @@
   const antigoCalculoFinanciamento = calcularFinanciamentoV5;
   const antigaPaginaTarefas = renderTarefas;
   const antigoFormularioPessoa = abrirFormPessoaV5;
+  const antigoSalvarCliente = salvarCliente;
   const antigosResultados = itensBuscaGlobalV10;
   const antigosDadosProcura = dadosRelatorioProcuraV12;
   const moeda = n => 'R$ ' + fmtMoney(Number(n) || 0);
   const ativo = c => !['Fechado', 'Perdido'].includes(c.status);
-  const ultimaNota = c => [...(c.historico || [])].reverse().find(h => !h.auto);
+  const ultimaNota = c => {
+    let ultima=null, dataMaisRecente=-Infinity;
+    for(const nota of (Array.isArray(c.historico)?c.historico:[])) {
+      if(!nota || nota.auto || !String(nota.texto||'').trim())continue;
+      const data=dataLocal(nota.data), tempo=data?data.getTime():-Infinity;
+      if(!ultima || tempo>=dataMaisRecente){ultima=nota;dataMaisRecente=tempo;}
+    }
+    return ultima;
+  };
   const emAtraso = c => !!c.proximaAcaoData && (c.proximaAcaoData < hojeStr() || (c.proximaAcaoData === hojeStr() && !!c.proximaAcaoHora && dataAcaoV7(c) < new Date()));
   const semRetorno = c => !c.proximaAcaoData;
   const acao = (nome, id, texto, classe = 'secondary') => `<button type="button" class="btn ${classe} small" data-crm-acao="${nome}" data-id="${escAttr(id || '')}">${texto}</button>`;
@@ -31,9 +40,83 @@
   renderClientes = function(main) { antigaPaginaClientes(main); barraClientes(main, 'clientes'); };
   renderPessoasV5 = function(main) { antigaPaginaPessoas(main); barraClientes(main, 'pessoas'); };
 
-  function faixaFollowup(c) {
-    const nota = ultimaNota(c);
-    return `<div class="notice" style="margin:10px 0"><b>Próximo acompanhamento</b><div>${escHtml(c.proximaAcao || 'Nenhuma próxima ação registrada')}${c.proximaAcaoData ? ' · ' + fmtDataCurta(c.proximaAcaoData) + (c.proximaAcaoHora ? ' às ' + escHtml(c.proximaAcaoHora) : '') : ''}</div><div class="entity-meta">${nota ? 'Último contato: ' + escHtml(nota.texto) : 'Nenhum contato registrado.'}</div>${acao('contato',c.id,'Registrar contato')}</div>`;
+  function dadosResumoAtendimento(c) {
+    const perfil=c.perfilBusca||{}, legado=c.imovel||{}, fins=Array.isArray(c.finalidade)?c.finalidade:[], nota=ultimaNota(c);
+    const procura=fins.some(f=>f==='Compra'||f==='Investimento') || (fins.includes('Aluguel') && c.papelAluguel!=='Locador');
+    const oferta=fins.includes('Venda') || (fins.includes('Aluguel') && ['Locador','Ambos'].includes(c.papelAluguel));
+    const vinculado=oferta && c.imovelId ? imovelV5(c.imovelId) : null;
+    const operacoes=fins.map(f=>f==='Compra'?'Comprar':f==='Venda'?'Vender':f==='Aluguel'?(c.papelAluguel==='Locador'?'Alugar (oferta)':c.papelAluguel==='Ambos'?'Alugar (procura e oferta)':'Alugar'):f==='Investimento'?'Investir':f);
+    const tipo=procura?(perfil.tipo||legado.tipo||''):(legado.tipo||vinculado?.tipo||perfil.tipo||'');
+    const regiao=procura?(perfil.bairros||legado.bairro||perfil.cidade||''):(legado.bairro||vinculado?.bairro||perfil.bairros||perfil.cidade||'');
+    const formatarValor=v=>{const n=parseMoney(v);return n>0?'R$ '+fmtMoney(n):String(v||'');};
+    const valores=[];
+    if(procura && perfil.valorMax)valores.push('Orçamento até '+formatarValor(perfil.valorMax));
+    else if(procura && fins.includes('Aluguel') && c.custoLocacao)valores.push('Custo de locação informado: '+formatarValor(c.custoLocacao));
+    const valorVenda=legado.valorPedido||vinculado?.valorVenda||'';
+    if(fins.includes('Venda') && valorVenda)valores.push('Venda: '+formatarValor(valorVenda));
+    const valorAluguel=legado.aluguel||vinculado?.aluguel||'';
+    if(fins.includes('Aluguel') && ['Locador','Ambos'].includes(c.papelAluguel) && valorAluguel)valores.push('Aluguel: '+formatarValor(valorAluguel)+'/mês');
+    if(!valores.length && perfil.valorMax)valores.push('Valor informado: '+formatarValor(perfil.valorMax));
+    const valor=valores.join(' · ');
+    const pagamento=[perfil.pagamento,c.garantiaLocacao?'Garantia: '+c.garantiaLocacao:''].filter(Boolean).join(' · ');
+    const proximo=[c.proximaAcao||(c.proximaAcaoData?'Ação não informada':''),c.proximaAcaoData?fmtDataCurta(c.proximaAcaoData)+(c.proximaAcaoHora?' às '+c.proximaAcaoHora:''):''].filter(Boolean).join(' · ');
+    const ultimoContato=nota?.data&&dataLocal(nota.data)?(/^\d{4}-\d{2}-\d{2}$/.test(String(nota.data))?fmtDataCurta(nota.data):fmtData(nota.data)):'';
+    const detalhes=[perfil.observacoesNecessidade,perfil.indispensaveis].filter(Boolean);
+    const descricao=detalhes.length?[...new Set(detalhes)].join(' · '):String(perfil.textoGrupo||'');
+    return {finalidade:operacoes.join(' / '),tipo,regiao,valor,pagamento,urgencia:c.timing||'',quartos:perfil.quartos?perfil.quartos+' quarto(s)':'',pedido:String(c.oQuePediu||''),descricao,nota:nota?.texto||'',ultimoContato,proximo};
+  }
+  function resumoAtendimentoHtml(c,pessoaId='') {
+    const r=dadosResumoAtendimento(c);
+    const campo=(titulo,valor)=>`<div class="resumo-360-campo"><small>${titulo}</small><span>${escHtml(valor||'Não informado')}</span></div>`;
+    const identificacao=pessoaId?`<div class="entity-meta"><b>${escHtml(c.codigoCadastro||'Atendimento')}</b> · ${escHtml(r.finalidade||'Finalidade não informada')}</div>`:'';
+    const nota=String(r.nota||'');
+    return `<section class="resumo-360-atendimento" data-crm-resumo-card data-cliente-id="${escAttr(c.id)}" data-pessoa-id="${escAttr(pessoaId)}">${identificacao}<div class="resumo-360-grade">${campo('Finalidade',r.finalidade)}${campo('Tipo / região',[r.tipo,r.regiao,r.quartos].filter(Boolean).join(' · '))}${campo('Valor / orçamento',r.valor)}${campo('Pagamento / garantia',r.pagamento)}${campo('Urgência',r.urgencia)}${campo('Último contato',r.ultimoContato)}${campo('Última anotação de contato',nota.length>180?nota.slice(0,180)+'…':nota)}${campo('Próximo passo',r.proximo)}${r.descricao?campo('Descrição da procura',r.descricao.length>180?r.descricao.slice(0,180)+'…':r.descricao):''}</div><div class="resumo-360-pedido"><label for="resumo-pedido-${escAttr(c.id)}"><b>O que ele pediu?</b></label><input id="resumo-pedido-${escAttr(c.id)}" data-crm-resumo-pedido maxlength="200" type="text" value="${escAttr(r.pedido)}" placeholder="Resuma o pedido ou dúvida em uma linha">${acao('salvar-pedido-resumo',c.id,'Salvar pedido','verde')} ${acao('contato',c.id,'Registrar contato')}</div></section>`;
+  }
+  function faixaResumo(atendimentos,pessoaId='') {
+    return `<div class="resumo-360-fixo" aria-label="Resumo do atendimento"><h3>🎯 Resumo do atendimento</h3>${atendimentos.map(c=>resumoAtendimentoHtml(c,pessoaId)).join('')}</div>`;
+  }
+  function rascunhosPedido() {
+    return Array.from(document.querySelectorAll('#modal-detalhe [data-crm-resumo-card]')).flatMap(painel=>{
+      const campo=painel.querySelector('[data-crm-resumo-pedido]'),cliente=state.clientes.find(c=>c.id===painel.dataset.clienteId);
+      return campo && cliente && campo.value.trim()!==String(cliente.oQuePediu||'')?[{id:cliente.id,pessoaId:painel.dataset.pessoaId||'',valor:campo.value}]:[];
+    });
+  }
+  function restaurarRascunhosPedido(rascunhos) {
+    const paineis=Array.from(document.querySelectorAll('#modal-detalhe [data-crm-resumo-card]'));
+    rascunhos.forEach(r=>{const campo=paineis.find(p=>p.dataset.clienteId===r.id && (p.dataset.pessoaId||'')===r.pessoaId)?.querySelector('[data-crm-resumo-pedido]');if(campo)campo.value=r.valor;});
+  }
+  function atualizarFichaAposAlteracao(id,pessoaId,aba,rolagem) {
+    const modal=document.getElementById('modal-detalhe'),atualizado=state.clientes.find(c=>c.id===id);
+    if(!atualizado){fecharModal('modal-detalhe');return;}
+    if(pessoaId && pessoaV5(pessoaId))abrirVisao360PessoaV5(pessoaId);
+    else {detalheClienteAtual=atualizado;renderDetalhe(atualizado);}
+    if(aba)Array.from(modal?.querySelectorAll('.tab-btn')||[]).find(b=>b.dataset.tab===aba)?.click();
+    if(modal)modal.scrollTop=rolagem;
+  }
+  function salvarPedidoResumo(botao) {
+    const painel=botao.closest('[data-crm-resumo-card]'),id=painel?.dataset.clienteId,pessoaId=painel?.dataset.pessoaId||'';
+    const cliente=state.clientes.find(c=>c.id===id),campo=painel?.querySelector('[data-crm-resumo-pedido]');
+    if(!cliente||!campo)return toast('Não foi possível localizar este atendimento.');
+    const pedido=campo.value.trim();
+    if(pedido===String(cliente.oQuePediu||''))return toast('O pedido já está salvo.');
+    const anterior=cliente.oQuePediu,modal=document.getElementById('modal-detalhe'),aba=modal?.querySelector('.tab-btn.active')?.dataset.tab,rolagem=modal?.scrollTop||0;
+    cliente.oQuePediu=pedido;
+    const salvo=salvar(state);
+    if(!salvo && state.clientes.find(c=>c.id===id)===cliente){cliente.oQuePediu=anterior;return;}
+    if(salvo){
+      if(!pessoaId)detalheClienteAtual=state.clientes.find(c=>c.id===id)||null;
+      render();toast('Pedido atualizado.');return;
+    }
+    atualizarFichaAposAlteracao(id,pessoaId,aba,rolagem);
+    const novoPainel=Array.from(document.querySelectorAll('#modal-detalhe [data-crm-resumo-card]')).find(el=>el.dataset.clienteId===id && (el.dataset.pessoaId||'')===pessoaId);
+    const novoCampo=novoPainel?.querySelector('[data-crm-resumo-pedido]');
+    if(novoCampo){
+      novoCampo.value=pedido;
+      const aviso=document.createElement('div');
+      aviso.className='notice';
+      aviso.textContent='O pedido digitado não foi salvo. Confira o cadastro atualizado e salve novamente se desejar. Valor atualmente salvo: '+(state.clientes.find(c=>c.id===id)?.oQuePediu||'não informado')+'.';
+      novoPainel.appendChild(aviso);
+    }
   }
   function faixaPipeline(c, pessoaId='') {
     const nomeAtendimento=pessoaId ? `<small class="entity-meta" style="display:block">${escHtml(c.codigoCadastro||'Atendimento')} · ${escHtml((c.finalidade||[]).join(', ')||c.nome)}</small>` : '';
@@ -47,27 +130,18 @@
     if(cliente.status===novaEtapa)return toast('O atendimento já está nessa etapa.');
     const modal=document.getElementById('modal-detalhe');
     const aba=modal?.querySelector('.tab-btn.active')?.dataset.tab;
-    const rolagem=modal?.querySelector('.modal')?.scrollTop||0;
+    const rolagem=modal?.scrollTop||0;
+    const rascunhos=rascunhosPedido();
     atualizarStatusCliente(id,novaEtapa,'ficha do cliente');
-    const atualizado=state.clientes.find(c=>c.id===id);
-    if(!atualizado){fecharModal('modal-detalhe');return;}
-    if(pessoaId && pessoaV5(pessoaId))abrirVisao360PessoaV5(pessoaId);
-    else {
-      detalheClienteAtual=atualizado;
-      renderDetalhe(atualizado);
-    }
-    if(aba)Array.from(modal?.querySelectorAll('.tab-btn')||[]).find(b=>b.dataset.tab===aba)?.click();
-    const conteudo=modal?.querySelector('.modal');if(conteudo)conteudo.scrollTop=rolagem;
+    atualizarFichaAposAlteracao(id,pessoaId,aba,rolagem);
+    restaurarRascunhosPedido(rascunhos);
   }
   abrirVisao360PessoaV5 = function(id) {
     antigoDetalhePessoa(id);
     const corpo = document.getElementById('detalhe-body');
-    const clientes = state.clientes.filter(c => c.pessoaId === id && ativo(c));
-    if (corpo && clientes.length) corpo.insertAdjacentHTML('afterbegin', clientes.map(faixaFollowup).join(''));
     const atendimentos=state.clientes.filter(c=>c.pessoaId===id);
-    if(corpo && atendimentos.length)corpo.insertAdjacentHTML('afterbegin',atendimentos.map(c=>faixaPipeline(c,id)).join(''));
     const fechados=state.clientes.filter(c=>c.pessoaId===id && c.status==='Fechado' && !state.comissoes.some(x=>x.clienteId===c.id||x.legacyClienteId===c.id));
-    if(corpo && fechados.length) corpo.insertAdjacentHTML('afterbegin',fechados.map(c=>`<div class="notice">Negócio fechado: ${escHtml(c.nome)} · ${acao('comissao-cliente',c.id,'Preparar comissão')}</div>`).join(''));
+    if(corpo && atendimentos.length) corpo.insertAdjacentHTML('afterbegin',faixaResumo(atendimentos,id)+atendimentos.map(c=>faixaPipeline(c,id)).join('')+fechados.map(c=>`<div class="notice">Negócio fechado: ${escHtml(c.nome)} · ${acao('comissao-cliente',c.id,'Preparar comissão')}</div>`).join(''));
     corpo?.querySelectorAll('.stat-card').forEach(el => { if (el.textContent.includes('Avaliações AVP')) el.remove(); });
     corpo?.querySelectorAll('.tab-btn').forEach(el => { if (el.textContent.includes('Busca / AVP')) el.textContent = 'Busca'; });
     corpo?.querySelectorAll('h4').forEach(el => { if (el.textContent.includes('Avaliações AVP')) { const section=el.parentElement; section?.querySelectorAll('[onclick*="abrirFormAvaliacaoV5"]').forEach(b=>b.closest('.owner-row')?.remove()); el.remove(); } });
@@ -76,8 +150,16 @@
   renderDetalhe = function(c) {
     antigoDetalheCliente(c);
     const corpo=document.getElementById('detalhe-body');
-    corpo?.insertAdjacentHTML('afterbegin', faixaFollowup(c)+faixaPipeline(c));
+    corpo?.insertAdjacentHTML('afterbegin', faixaResumo([c])+faixaPipeline(c));
     corpo?.querySelectorAll('[onclick*="irParaLoc"],[onclick*="abrirFormContratoV5"],[onclick*="abrirFormAvaliacaoV5"]').forEach(el=>el.closest('.owner-row')?.remove() || el.remove());
+  };
+  salvarCliente=function() {
+    const id=document.getElementById('cliente-id')?.value||'';
+    const modal=document.getElementById('modal-detalhe'),aberto=modal?.classList.contains('show');
+    const resumo=aberto?Array.from(modal.querySelectorAll('[data-crm-resumo-card]')).find(el=>el.dataset.clienteId===id):null;
+    const pessoaId=resumo?.dataset.pessoaId||'',aba=modal?.querySelector('.tab-btn.active')?.dataset.tab,rolagem=modal?.scrollTop||0;
+    antigoSalvarCliente();
+    if(id && aberto && resumo && !document.getElementById('modal-cliente')?.classList.contains('show'))atualizarFichaAposAlteracao(id,pessoaId,aba,rolagem);
   };
   abrirFormPessoaV5=function(...args) {
     antigoFormularioPessoa(...args);
@@ -118,14 +200,16 @@
     const hora=document.getElementById('int-proxima-hora').value;
     if(!c || !texto) return toast('Descreva o contato antes de salvar.');
     if(data && !proxima) return toast('Informe a próxima ação para o retorno agendado.');
+    const modal=document.getElementById('modal-detalhe'),aberto=modal?.classList.contains('show');
+    const painel=aberto?Array.from(modal.querySelectorAll('[data-crm-resumo-card]')).find(el=>el.dataset.clienteId===c.id):null;
+    const pessoaId=painel?.dataset.pessoaId||'',aba=modal?.querySelector('.tab-btn.active')?.dataset.tab,rolagem=modal?.scrollTop||0;
+    const rascunhos=aberto?rascunhosPedido():[];
     c.historico=c.historico||[];
     c.historico.push({data:hoje(),texto: texto + (resultado ? ' · ' + resultado : ''),auto:false,resultado});
     c.ultimaInteracao=hoje(); c.proximaAcao=proxima; c.proximaAcaoData=data; c.proximaAcaoHora=hora; c.situacaoFollowup=resultado;
     if(!salvar(state)) return;
     fecharModal('modal-interacao');
-    if (document.getElementById('modal-detalhe').classList.contains('show')) {
-      if(c.pessoaId && pessoaV5(c.pessoaId)) abrirVisao360PessoaV5(c.pessoaId); else renderDetalhe(c);
-    }
+    if(aberto && painel){atualizarFichaAposAlteracao(c.id,pessoaId,aba,rolagem);restaurarRascunhosPedido(rascunhos);}
     render(); toast('Contato registrado e próximo passo atualizado.');
   };
   function abrirAcompanhamento(filtro='todos') {
@@ -144,12 +228,14 @@
     }).sort((a,b)=>String(a.proximaAcaoData||'9999').localeCompare(String(b.proximaAcaoData||'9999')) || a.nome.localeCompare(b.nome,'pt-BR'));
   }
   function linhaCliente(c) {
-    const nota=ultimaNota(c), p=c.perfilBusca||{};
-    const perfil=[p.tipo,p.bairros,p.quartos ? p.quartos+' quartos':'',p.valorMax?'até R$ '+p.valorMax:''].filter(Boolean).join(' · ');
-    return `<tr><td><b>${escHtml(c.nome)}</b><br><small>${escHtml(c.status||'')}</small></td><td>${escHtml(perfil||'Procura não informada')}</td><td>${escHtml(nota?.texto||'Sem contato registrado')}</td><td>${escHtml(c.proximaAcao||'Sem próxima ação')}<br><small>${c.proximaAcaoData?fmtDataCurta(c.proximaAcaoData)+(c.proximaAcaoHora?' · '+escHtml(c.proximaAcaoHora):''):'Sem data'}</small></td><td><div class="entity-actions">${acao('abrir-cliente',c.id,'Abrir')}${acao('contato',c.id,'Registrar contato')}${c.whatsapp?'<a class="btn small" target="_blank" rel="noopener noreferrer" href="'+whatsappLink(c.whatsapp)+'">WhatsApp</a>':''}</div></td></tr>`;
+    const r=dadosResumoAtendimento(c);
+    const perfil=[r.finalidade,r.tipo,r.regiao,r.quartos,r.valor].filter(Boolean).join(' · ');
+    const complementos=[r.pagamento,r.urgencia?'Prazo: '+r.urgencia:''].filter(Boolean).join(' · ');
+    const descricao=r.descricao.length>200?r.descricao.slice(0,200)+'…':r.descricao;
+    return `<tr><td><b>${escHtml(c.nome)}</b><br><small>${escHtml(c.status||'')}</small></td><td style="min-width:220px">${r.pedido?`<b>${escHtml(r.pedido)}</b><br>`:descricao?`<b>Descrição da procura:</b> ${escHtml(descricao)}<br>`:''}${escHtml(perfil||(!r.pedido&&!descricao?'Detalhes ainda não informados':''))}${complementos?`<br><small>${escHtml(complementos)}</small>`:''}</td><td>${escHtml(r.ultimoContato||'Data não registrada')}${r.nota?`<br><small>${escHtml(r.nota)}</small>`:''}</td><td>${escHtml(r.proximo||'Sem próxima ação')}</td><td><div class="entity-actions">${acao('abrir-cliente',c.id,'Abrir')}${acao('contato',c.id,'Registrar contato')}${c.whatsapp?'<a class="btn small" target="_blank" rel="noopener noreferrer" href="'+whatsappLink(c.whatsapp)+'">WhatsApp</a>':''}</div></td></tr>`;
   }
   function tabelaAcompanhamento(lista) {
-    return `<div class="card" style="overflow:auto"><table><thead><tr><th>Cliente</th><th>Procura</th><th>Último contato</th><th>Próximo passo</th><th>Ações</th></tr></thead><tbody>${lista.map(linhaCliente).join('') || '<tr><td colspan="5">Nenhum atendimento encontrado.</td></tr>'}</tbody></table></div>`;
+    return `<div class="card" style="overflow:auto"><table><thead><tr><th>Cliente</th><th>Resumo do atendimento</th><th>Último contato</th><th>Próximo passo</th><th>Ações</th></tr></thead><tbody>${lista.map(linhaCliente).join('') || '<tr><td colspan="5">Nenhum atendimento encontrado.</td></tr>'}</tbody></table></div>`;
   }
   renderHojeV7 = function(main) {
     const clientes=state.clientes.filter(ativo), atrasados=clientes.filter(emAtraso), hoje=clientes.filter(c=>c.proximaAcaoData===hojeStr()&&!emAtraso(c)), sem=clientes.filter(semRetorno), visitas=clientes.filter(c=>c.status==='Visita Agendada');
@@ -469,6 +555,7 @@
     else if(cmd==='fila')abrirAcompanhamento(id);
     else if(cmd==='abrir-cliente')abrirDashboardLead(id);
     else if(cmd==='contato')abrirInteracao(id);
+    else if(cmd==='salvar-pedido-resumo')salvarPedidoResumo(botao);
     else if(cmd==='salvar-etapa-pipeline')salvarEtapaNaFicha(botao);
     else if(cmd==='rel-procura'){abaRelatorio='procura';render();}
     else if(cmd==='rel-acomp'){abaRelatorio='acompanhamento';filtroAcompanhamento='todos';render();}
@@ -508,6 +595,7 @@
     else if(e.target.dataset.crmFiltro==='taxa-modalidade' && MODALIDADES_BANCARIAS[e.target.value]){modalidadeBancaria=e.target.value;comparacaoBancaria=false;redesenharTaxasBancos();}
   });
   document.addEventListener('input',e=>{if(e.target.id==='tb-busca'){filtrarBancos(e.target.value);if(comparacaoBancaria)compararBancos();}});
+  document.addEventListener('keydown',e=>{if(e.key==='Enter' && e.target.matches?.('[data-crm-resumo-pedido]')){e.preventDefault();e.target.closest('[data-crm-resumo-card]')?.querySelector('[data-crm-acao="salvar-pedido-resumo"]')?.click();}});
   ['c-etapa-locacao','c-proposta-enviada-em'].forEach(id=>{const campo=document.getElementById(id);if(campo?.closest('.form-group'))campo.closest('.form-group').style.display='none';});
   render();
 })();
