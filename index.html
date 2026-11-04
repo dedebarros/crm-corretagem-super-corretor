@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CRM Imobiliário Local v11.1 — André Barros</title>
+<title>CRM Imobiliário Local v11.2 — André Barros</title>
 <style>
   :root {
     --azul: #006994;
@@ -949,7 +949,7 @@
       <button class="nav-btn" data-page="config"><span class="icon">⚙</span><span>Backup</span></button>
     </nav>
     <div class="footer" id="app-footer">
-      v11.1 · dados locais
+      v11.2 · dados locais
     </div>
   </aside>
   <div class="workspace">
@@ -1651,9 +1651,10 @@
 <script>
 /* ===== VERSÃO & CHANGELOG =====
    Incremente APP_VERSION e adicione uma linha no topo de CHANGELOG a cada alteração. */
-const APP_VERSION = '11.1';
+const APP_VERSION = '11.2';
 const APP_AUTOR = 'André Barros';
 const CHANGELOG = [
+  { v: '11.2', desc: 'Alteração da etapa do Pipeline diretamente na ficha do cliente e na visão 360°.' },
   { v: '11.1', desc: 'Taxas médias de financiamento por banco, consulta ao Banco Central e comparação de cenários.' },
   { v: '11.0', desc: 'CRM de atendimento com Meu dia, follow-up, relatórios e ferramentas comerciais.' },
   { v: '10.2', desc: 'Relatório de Procura / Necessidade com filtros, agrupamento, impressão, CSV e bloqueio de celular duplicado.' },
@@ -2920,17 +2921,27 @@ function kanbanMudarStatus(select, id) {
   atualizarStatusCliente(id, select.value, 'seletor');
 }
 function atualizarStatusCliente(id, novoStatus, origem) {
-  if (!STATUS_LIST.includes(novoStatus)) return;
+  if (!STATUS_LIST.includes(novoStatus)) return false;
   const c = state.clientes.find(x => x.id === id);
-  if (!c || c.status === novoStatus) return;
+  if (!c || c.status === novoStatus) return false;
   const old = c.status;
+  const ultimaInteracaoAnterior = c.ultimaInteracao;
+  const historicoAnterior = Array.isArray(c.historico) ? c.historico.slice() : c.historico;
   c.status = novoStatus;
   c.ultimaInteracao = hoje();
   c.historico = c.historico || [];
   c.historico.push({ data: hoje(), texto: `Status: ${old} → ${novoStatus} (${origem})`, auto: true });
-  if (!salvar(state)) return;
+  if (!salvar(state)) {
+    if (state.clientes.find(x => x.id === id) === c) {
+      c.status = old;
+      c.ultimaInteracao = ultimaInteracaoAnterior;
+      c.historico = historicoAnterior;
+    }
+    return false;
+  }
   toast(`${c.nome} → ${novoStatus}`);
   render();
+  return true;
 }
 
 function renderTarefas(main) {
@@ -5784,6 +5795,6 @@ render();
 aplicarMascaras();
 aplicarAcessibilidade(document);
 </script>
-<script src="remodelacao.js?v=11.1"></script>
+<script src="remodelacao.js?v=11.2"></script>
 </body>
 </html>

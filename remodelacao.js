@@ -35,11 +35,37 @@
     const nota = ultimaNota(c);
     return `<div class="notice" style="margin:10px 0"><b>Próximo acompanhamento</b><div>${escHtml(c.proximaAcao || 'Nenhuma próxima ação registrada')}${c.proximaAcaoData ? ' · ' + fmtDataCurta(c.proximaAcaoData) + (c.proximaAcaoHora ? ' às ' + escHtml(c.proximaAcaoHora) : '') : ''}</div><div class="entity-meta">${nota ? 'Último contato: ' + escHtml(nota.texto) : 'Nenhum contato registrado.'}</div>${acao('contato',c.id,'Registrar contato')}</div>`;
   }
+  function faixaPipeline(c, pessoaId='') {
+    const nomeAtendimento=pessoaId ? `<small class="entity-meta" style="display:block">${escHtml(c.codigoCadastro||'Atendimento')} · ${escHtml((c.finalidade||[]).join(', ')||c.nome)}</small>` : '';
+    return `<div class="card" data-crm-pipeline-card data-cliente-id="${escAttr(c.id)}" data-pessoa-id="${escAttr(pessoaId)}" style="margin:10px 0;padding:14px"><b>Etapa no Pipeline</b>${nomeAtendimento}<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px"><select data-crm-pipeline-select aria-label="Etapa do Pipeline de ${escAttr(c.nome)}" style="flex:1;min-width:180px">${STATUS_LIST.map(s=>`<option value="${escAttr(s)}" ${s===c.status?'selected':''}>${escHtml(s)}</option>`).join('')}</select>${acao('salvar-etapa-pipeline',c.id,'Salvar etapa','verde')}</div></div>`;
+  }
+  function salvarEtapaNaFicha(botao) {
+    const painel=botao.closest('[data-crm-pipeline-card]');
+    const id=painel?.dataset.clienteId, pessoaId=painel?.dataset.pessoaId||'';
+    const cliente=state.clientes.find(c=>c.id===id), novaEtapa=painel?.querySelector('[data-crm-pipeline-select]')?.value;
+    if(!cliente || !STATUS_LIST.includes(novaEtapa))return toast('Não foi possível localizar o atendimento ou a etapa.');
+    if(cliente.status===novaEtapa)return toast('O atendimento já está nessa etapa.');
+    const modal=document.getElementById('modal-detalhe');
+    const aba=modal?.querySelector('.tab-btn.active')?.dataset.tab;
+    const rolagem=modal?.querySelector('.modal')?.scrollTop||0;
+    atualizarStatusCliente(id,novaEtapa,'ficha do cliente');
+    const atualizado=state.clientes.find(c=>c.id===id);
+    if(!atualizado){fecharModal('modal-detalhe');return;}
+    if(pessoaId && pessoaV5(pessoaId))abrirVisao360PessoaV5(pessoaId);
+    else {
+      detalheClienteAtual=atualizado;
+      renderDetalhe(atualizado);
+    }
+    if(aba)Array.from(modal?.querySelectorAll('.tab-btn')||[]).find(b=>b.dataset.tab===aba)?.click();
+    const conteudo=modal?.querySelector('.modal');if(conteudo)conteudo.scrollTop=rolagem;
+  }
   abrirVisao360PessoaV5 = function(id) {
     antigoDetalhePessoa(id);
     const corpo = document.getElementById('detalhe-body');
     const clientes = state.clientes.filter(c => c.pessoaId === id && ativo(c));
     if (corpo && clientes.length) corpo.insertAdjacentHTML('afterbegin', clientes.map(faixaFollowup).join(''));
+    const atendimentos=state.clientes.filter(c=>c.pessoaId===id);
+    if(corpo && atendimentos.length)corpo.insertAdjacentHTML('afterbegin',atendimentos.map(c=>faixaPipeline(c,id)).join(''));
     const fechados=state.clientes.filter(c=>c.pessoaId===id && c.status==='Fechado' && !state.comissoes.some(x=>x.clienteId===c.id||x.legacyClienteId===c.id));
     if(corpo && fechados.length) corpo.insertAdjacentHTML('afterbegin',fechados.map(c=>`<div class="notice">Negócio fechado: ${escHtml(c.nome)} · ${acao('comissao-cliente',c.id,'Preparar comissão')}</div>`).join(''));
     corpo?.querySelectorAll('.stat-card').forEach(el => { if (el.textContent.includes('Avaliações AVP')) el.remove(); });
@@ -50,7 +76,7 @@
   renderDetalhe = function(c) {
     antigoDetalheCliente(c);
     const corpo=document.getElementById('detalhe-body');
-    corpo?.insertAdjacentHTML('afterbegin', faixaFollowup(c));
+    corpo?.insertAdjacentHTML('afterbegin', faixaFollowup(c)+faixaPipeline(c));
     corpo?.querySelectorAll('[onclick*="irParaLoc"],[onclick*="abrirFormContratoV5"],[onclick*="abrirFormAvaliacaoV5"]').forEach(el=>el.closest('.owner-row')?.remove() || el.remove());
   };
   abrirFormPessoaV5=function(...args) {
@@ -443,6 +469,7 @@
     else if(cmd==='fila')abrirAcompanhamento(id);
     else if(cmd==='abrir-cliente')abrirDashboardLead(id);
     else if(cmd==='contato')abrirInteracao(id);
+    else if(cmd==='salvar-etapa-pipeline')salvarEtapaNaFicha(botao);
     else if(cmd==='rel-procura'){abaRelatorio='procura';render();}
     else if(cmd==='rel-acomp'){abaRelatorio='acompanhamento';filtroAcompanhamento='todos';render();}
     else if(cmd==='alternar-relatorio'){relatorioCompleto=!relatorioCompleto;render();}
