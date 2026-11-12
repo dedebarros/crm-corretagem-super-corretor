@@ -1,25 +1,25 @@
 {
   "dados": {
     "selic": {
-      "data": "11/11/2026",
+      "data": "12/11/2026",
       "valor": "13.75",
       "fonte": "Banco Central"
     },
     "cdi": {
-      "data": "10/11/2026",
+      "data": "11/11/2026",
       "valor": "0.050788",
       "fonte": "Banco Central"
     },
     "ipca": {
-      "data": "01/09/2026",
-      "valor": "0.82",
+      "data": "01/10/2026",
+      "valor": "0.14",
       "fonte": "Banco Central"
     },
     "tr": {
-      "data": "10/11/2026",
+      "data": "11/11/2026",
       "valor": "0.1691",
       "fonte": "Banco Central"
     }
   },
-  "atualizadoEm": "2026-11-11T18:49:43.243939+00:00"
+  "atualizadoEm": "2026-11-12T19:00:37.108497+00:00"
 }
