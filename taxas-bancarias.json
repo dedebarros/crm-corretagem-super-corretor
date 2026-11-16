@@ -1,155 +1,137 @@
 {
-  "atualizadoEm": "2026-11-15T17:54:18.493885+00:00",
+  "atualizadoEm": "2026-11-16T21:09:08.673562+00:00",
   "modalidades": {
     "mercado_tr": {
-      "competencia": "2026-09",
+      "competencia": "2026-10",
       "modalidade": "Financiamento imobiliário com taxas de mercado - Pós-fixado referenciado em TR",
-      "consultadoEm": "2026-11-15T17:54:16.889123+00:00",
+      "consultadoEm": "2026-11-16T21:09:07.977755+00:00",
       "bancos": [
         {
-          "instituicao": "BCO DO ESTADO DO RS S.A.",
-          "cnpj8": "92702067",
-          "taxaAnual": 9.39,
-          "taxaMensal": 0.75
-        },
-        {
-          "instituicao": "BANCO BARI S.A.",
-          "cnpj8": "00556603",
-          "taxaAnual": 9.53,
-          "taxaMensal": 0.76
+          "instituicao": "BCO DO EST. DO PA S.A.",
+          "cnpj8": "04913711",
+          "taxaAnual": 10.0,
+          "taxaMensal": 0.8
         },
         {
           "instituicao": "BCO BANESTES S.A.",
           "cnpj8": "28127603",
-          "taxaAnual": 10.72,
+          "taxaAnual": 10.71,
           "taxaMensal": 0.85
         },
         {
           "instituicao": "BANCO SICOOB S.A.",
           "cnpj8": "02038232",
-          "taxaAnual": 10.79,
-          "taxaMensal": 0.86
-        },
-        {
-          "instituicao": "BCO DO EST. DO PA S.A.",
-          "cnpj8": "04913711",
-          "taxaAnual": 10.92,
+          "taxaAnual": 10.93,
           "taxaMensal": 0.87
         },
         {
           "instituicao": "BCO DO EST. DE SE S.A.",
           "cnpj8": "13009717",
-          "taxaAnual": 11.12,
-          "taxaMensal": 0.88
-        },
-        {
-          "instituicao": "BANCO COOPERATIVO SICREDI",
-          "cnpj8": "01181521",
-          "taxaAnual": 11.56,
-          "taxaMensal": 0.92
+          "taxaAnual": 11.35,
+          "taxaMensal": 0.9
         },
         {
           "instituicao": "CAIXA ECONOMICA FEDERAL",
           "cnpj8": "00360305",
-          "taxaAnual": 12.05,
+          "taxaAnual": 11.97,
           "taxaMensal": 0.95
         },
         {
           "instituicao": "ITAÚ UNIBANCO S.A.",
           "cnpj8": "60701190",
-          "taxaAnual": 12.14,
-          "taxaMensal": 0.96
+          "taxaAnual": 12.22,
+          "taxaMensal": 0.97
+        },
+        {
+          "instituicao": "BANCO COOPERATIVO SICREDI",
+          "cnpj8": "01181521",
+          "taxaAnual": 12.23,
+          "taxaMensal": 0.97
         },
         {
           "instituicao": "BCO BRADESCO S.A.",
           "cnpj8": "60746948",
-          "taxaAnual": 12.24,
+          "taxaAnual": 12.27,
           "taxaMensal": 0.97
         },
         {
           "instituicao": "BCO SANTANDER (BRASIL) S.A.",
           "cnpj8": "90400888",
-          "taxaAnual": 12.31,
+          "taxaAnual": 12.32,
           "taxaMensal": 0.97
         },
         {
           "instituicao": "BANCO INTER",
           "cnpj8": "00416968",
-          "taxaAnual": 12.91,
+          "taxaAnual": 12.97,
           "taxaMensal": 1.02
         },
         {
           "instituicao": "BCO DO BRASIL S.A.",
           "cnpj8": "00000000",
-          "taxaAnual": 14.49,
+          "taxaAnual": 14.42,
           "taxaMensal": 1.13
         }
       ]
     },
     "regulado_tr": {
-      "competencia": "2026-09",
+      "competencia": "2026-10",
       "modalidade": "Financiamento imobiliário com taxas reguladas - Pós-fixado referenciado em TR",
-      "consultadoEm": "2026-11-15T17:54:18.493856+00:00",
+      "consultadoEm": "2026-11-16T21:09:08.673541+00:00",
       "bancos": [
         {
           "instituicao": "CAIXA ECONOMICA FEDERAL",
           "cnpj8": "00360305",
-          "taxaAnual": 7.98,
-          "taxaMensal": 0.64
-        },
-        {
-          "instituicao": "BANCO INTER",
-          "cnpj8": "00416968",
-          "taxaAnual": 9.66,
-          "taxaMensal": 0.77
-        },
-        {
-          "instituicao": "BANCO SICOOB S.A.",
-          "cnpj8": "02038232",
-          "taxaAnual": 10.01,
-          "taxaMensal": 0.8
-        },
-        {
-          "instituicao": "BCO DO EST. DO PA S.A.",
-          "cnpj8": "04913711",
-          "taxaAnual": 10.21,
-          "taxaMensal": 0.81
-        },
-        {
-          "instituicao": "BCO DO ESTADO DO RS S.A.",
-          "cnpj8": "92702067",
-          "taxaAnual": 10.35,
-          "taxaMensal": 0.82
-        },
-        {
-          "instituicao": "BANCO COOPERATIVO SICREDI",
-          "cnpj8": "01181521",
-          "taxaAnual": 10.5,
-          "taxaMensal": 0.84
-        },
-        {
-          "instituicao": "BCO DO EST. DE SE S.A.",
-          "cnpj8": "13009717",
-          "taxaAnual": 10.54,
-          "taxaMensal": 0.84
+          "taxaAnual": 7.87,
+          "taxaMensal": 0.63
         },
         {
           "instituicao": "APE POUPEX",
           "cnpj8": "00655522",
-          "taxaAnual": 10.61,
-          "taxaMensal": 0.84
+          "taxaAnual": 8.48,
+          "taxaMensal": 0.68
+        },
+        {
+          "instituicao": "BANCO INTER",
+          "cnpj8": "00416968",
+          "taxaAnual": 9.09,
+          "taxaMensal": 0.73
+        },
+        {
+          "instituicao": "BANCO SICOOB S.A.",
+          "cnpj8": "02038232",
+          "taxaAnual": 9.89,
+          "taxaMensal": 0.79
+        },
+        {
+          "instituicao": "BCO DO EST. DO PA S.A.",
+          "cnpj8": "04913711",
+          "taxaAnual": 10.38,
+          "taxaMensal": 0.83
+        },
+        {
+          "instituicao": "BCO DO EST. DE SE S.A.",
+          "cnpj8": "13009717",
+          "taxaAnual": 10.44,
+          "taxaMensal": 0.83
         },
         {
           "instituicao": "BCO DO BRASIL S.A.",
           "cnpj8": "00000000",
-          "taxaAnual": 10.61,
+          "taxaAnual": 10.56,
           "taxaMensal": 0.84
         },
         {
           "instituicao": "BCO BANESTES S.A.",
           "cnpj8": "28127603",
-          "taxaAnual": 10.62,
+          "taxaAnual": 10.61,
           "taxaMensal": 0.84
+        },
+        {
+          "instituicao": "BANCO COOPERATIVO SICREDI",
+          "cnpj8": "01181521",
+          "taxaAnual": 10.64,
+          "taxaMensal": 0.85
         },
         {
           "instituicao": "BRB - BCO DE BRASILIA S.A.",
@@ -160,19 +142,19 @@
         {
           "instituicao": "BCO BRADESCO S.A.",
           "cnpj8": "60746948",
-          "taxaAnual": 11.77,
+          "taxaAnual": 11.78,
           "taxaMensal": 0.93
         },
         {
           "instituicao": "BCO SANTANDER (BRASIL) S.A.",
           "cnpj8": "90400888",
-          "taxaAnual": 11.85,
+          "taxaAnual": 11.86,
           "taxaMensal": 0.94
         },
         {
           "instituicao": "ITAÚ UNIBANCO S.A.",
           "cnpj8": "60701190",
-          "taxaAnual": 11.87,
+          "taxaAnual": 11.86,
           "taxaMensal": 0.94
         }
       ]
