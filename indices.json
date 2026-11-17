@@ -1,12 +1,12 @@
 {
   "dados": {
     "selic": {
-      "data": "16/11/2026",
+      "data": "17/11/2026",
       "valor": "13.75",
       "fonte": "Banco Central"
     },
     "cdi": {
-      "data": "13/11/2026",
+      "data": "16/11/2026",
       "valor": "0.050788",
       "fonte": "Banco Central"
     },
@@ -16,10 +16,10 @@
       "fonte": "Banco Central"
     },
     "tr": {
-      "data": "13/11/2026",
-      "valor": "0.1456",
+      "data": "16/11/2026",
+      "valor": "0.1692",
       "fonte": "Banco Central"
     }
   },
-  "atualizadoEm": "2026-11-16T21:09:06.853135+00:00"
+  "atualizadoEm": "2026-11-17T19:57:39.128702+00:00"
 }
