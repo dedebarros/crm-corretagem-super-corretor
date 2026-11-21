@@ -1,10 +1,10 @@
 {
-  "atualizadoEm": "2026-11-20T19:11:49.467927+00:00",
+  "atualizadoEm": "2026-11-21T18:07:52.798272+00:00",
   "modalidades": {
     "mercado_tr": {
       "competencia": "2026-10",
       "modalidade": "Financiamento imobiliário com taxas de mercado - Pós-fixado referenciado em TR",
-      "consultadoEm": "2026-11-20T19:11:48.734646+00:00",
+      "consultadoEm": "2026-11-21T18:07:51.958921+00:00",
       "bancos": [
         {
           "instituicao": "BCO DO EST. DO PA S.A.",
@@ -83,7 +83,7 @@
     "regulado_tr": {
       "competencia": "2026-10",
       "modalidade": "Financiamento imobiliário com taxas reguladas - Pós-fixado referenciado em TR",
-      "consultadoEm": "2026-11-20T19:11:49.467916+00:00",
+      "consultadoEm": "2026-11-21T18:07:52.798242+00:00",
       "bancos": [
         {
           "instituicao": "CAIXA ECONOMICA FEDERAL",
